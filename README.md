@@ -1,52 +1,64 @@
-Project Name
+Classification multimodale de produits Rakuten — MLOps
 ==============================
 
-This project is a starting Pack for MLOps projects based on the subject "movie_recommandation". It's not perfect so feel free to make some modifications on it.
+Industrialisation du projet de classification automatique des produits Rakuten en
+27 catégories (`prdtypecode`) à partir du titre et de la description. La phase
+data-science (notebooks, démo Streamlit) vit dans le repo
+[nov25_alt1_mle_rakuten](https://github.com/DataScientest-Studio/nov25_alt1_mle_rakuten) ;
+ce repo porte l'industrialisation MLOps (pipeline scripté, API, Docker, puis
+MLflow/DVC/CI/monitoring au fil des phases — voir `docs/plans/`).
+
+Quickstart (Phase 1 — baseline + API)
+------------
+
+Prérequis : Python 3.11+, les CSV du challenge
+([challengedata.ens.fr](https://challengedata.ens.fr/challenges/35)) placés dans
+`data/` (`x_train.csv`, `y_train.csv`).
+
+```bash
+make setup          # venv + dépendances + stopwords NLTK
+make data           # nettoyage texte + split stratifié -> data/processed/
+make train          # TF-IDF + LightGBM -> models/baseline/ (+ metrics.json)
+make test           # tests unitaires (pas besoin des données brutes)
+make api            # API FastAPI sur http://localhost:8000
+```
+
+```bash
+curl -X POST localhost:8000/predict \
+  -H 'Content-Type: application/json' \
+  -d '{"designation": "Console Nintendo Switch OLED"}'
+```
+
+Avec Docker (nécessite `make train` au préalable pour produire les artefacts) :
+
+```bash
+make docker-build && make docker-run
+```
+
+Baseline : TF-IDF (50k features, 1-2 grammes) + LightGBM — F1 weighted validation = 0.81.
+Objectifs et métriques : `docs/phase1_objectives.md`. Plans de phase : `docs/plans/`.
 
 Project Organization
 ------------
 
-    ├── LICENSE
-    ├── README.md          <- The top-level README for developers using this project.
-    ├── data
-    │   ├── external       <- Data from third party sources.
-    │   ├── interim        <- Intermediate data that has been transformed.
-    │   ├── processed      <- The final, canonical data sets for modeling.
-    │   └── raw            <- The original, immutable data dump.
+    ├── Dockerfile              <- Image Docker de l'API d'inférence
+    ├── Makefile                <- setup / data / train / test / api / docker-*
+    ├── params.yaml             <- Configuration unique (chemins, TF-IDF, LightGBM)
+    ├── requirements.txt        <- Dépendances runtime épinglées (pipeline + API)
+    ├── requirements-dev.txt    <- + pytest, ruff, httpx
     │
-    ├── logs               <- Logs from training and predicting
+    ├── data                    <- Non versionné (CSV du challenge + data/processed/)
+    ├── models                  <- Non versionné (models/baseline/ produit par make train)
+    ├── docs                    <- Objectifs, plans de phase, rapports, figures
     │
-    ├── models             <- Trained and serialized models, model predictions, or model summaries
+    ├── src
+    │   ├── config.py           <- Chargement de params.yaml
+    │   ├── data                <- download_data.py, make_dataset.py, text_cleaning.py
+    │   ├── features            <- build_features.py (TF-IDF)
+    │   ├── models              <- train_model.py, predict_model.py
+    │   └── api                 <- main.py (FastAPI), schemas.py
     │
-    ├── notebooks          <- Jupyter notebooks. Naming convention is a number (for ordering),
-    │                         the creator's initials, and a short `-` delimited description, e.g.
-    │                         `1.0-jqp-initial-data-exploration`.
-    │
-    ├── references         <- Data dictionaries, manuals, and all other explanatory materials.
-    │
-    ├── reports            <- Generated analysis as HTML, PDF, LaTeX, etc.
-    │   └── figures        <- Generated graphics and figures to be used in reporting
-    │
-    ├── requirements.txt   <- The requirements file for reproducing the analysis environment, e.g.
-    │                         generated with `pip freeze > requirements.txt`
-    │
-    ├── src                <- Source code for use in this project.
-    │   ├── __init__.py    <- Makes src a Python module
-    │   │
-    │   ├── data           <- Scripts to download or generate data
-    │   │   └── make_dataset.py
-    │   │
-    │   ├── features       <- Scripts to turn raw data into features for modeling
-    │   │   └── build_features.py
-    │   │
-    │   ├── models         <- Scripts to train models and then use trained models to make
-    │   │   │                 predictions
-    │   │   ├── predict_model.py
-    │   │   └── train_model.py
-    │   │
-    │   ├── visualization  <- Scripts to create exploratory and results oriented visualizations
-    │   │   └── visualize.py
-    │   └── config         <- Describe the parameters used in train_model.py and predict_model.py
+    └── tests                   <- Tests unitaires (fixtures committées)
 
 --------
 
