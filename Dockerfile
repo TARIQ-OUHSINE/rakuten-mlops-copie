@@ -1,4 +1,4 @@
-FROM python:3.11-slim
+FROM python:3.11-slim AS runtime
 
 # LightGBM a besoin de libgomp
 RUN apt-get update && apt-get install -y --no-install-recommends libgomp1 \
@@ -24,3 +24,11 @@ COPY models/ models/
 
 EXPOSE 8000
 CMD ["uvicorn", "src.api.main:app", "--host", "0.0.0.0", "--port", "8000"]
+
+# Image du job d'entrainement (docker compose --profile train) :
+# la meme base + git/dvc pour `dvc repro` sur le repo monte dans /app.
+FROM runtime AS trainer
+RUN apt-get update && apt-get install -y --no-install-recommends git \
+    && rm -rf /var/lib/apt/lists/*
+RUN pip install --no-cache-dir dvc==3.67.1
+CMD ["dvc", "repro"]

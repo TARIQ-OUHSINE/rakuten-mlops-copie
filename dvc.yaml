@@ -1,0 +1,29 @@
+# Orchestration simple du pipeline baseline : `dvc repro` ne relance
+# que les stages dont les deps ont change.
+stages:
+  prepare:
+    cmd: python -m src.data.make_dataset
+    deps:
+      - data/x_train.csv
+      - data/y_train.csv
+      - src/data/
+    params:
+      - data
+      - split
+    outs:
+      - data/processed/
+
+  train:
+    cmd: python -m src.models.train_model
+    deps:
+      - data/processed/
+      - src/features/
+      - src/models/train_model.py
+      - src/models/mlflow_utils.py
+    params:
+      - tfidf
+      - lgbm
+      - early_stopping_rounds
+      - model
+    outs:
+      - models/baseline/

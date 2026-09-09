@@ -33,3 +33,9 @@ early_stopping_rounds: 50
 model:
   dir: models/baseline
   version: baseline-tfidf-lgbm-v1
+
+# Suivi d'experiences (Phase 2) — surcharge par env MLFLOW_TRACKING_URI
+mlflow:
+  tracking_uri: ./mlruns
+  experiment_name: rakuten-baseline
+  registered_model_name: rakuten-tfidf-lgbm
