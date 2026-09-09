@@ -105,6 +105,13 @@ $ dvc push
 CI GitHub Actions, sécurité API (auth), Kubernetes, monitoring/drift, refonte Streamlit
 vers l'API, industrialisation du modèle v2 MetaMLP.
 
+**Amélioration modèle (v2, relevée par la review Copilot de la PR #1) :** le nettoyage
+baseline (`_NON_ALPHA = [^a-z\s]` dans `src/data/text_cleaning.py`) supprime les lettres
+accentuées après `lower()` (« magnétisme » → « magn tisme »), ce qui dégrade le texte
+français. À corriger via une normalisation unicode (unidecode/NFKD) **avant** le filtre —
+mais uniquement avec un ré-entraînement complet + re-validation des métriques, car le
+baseline F1 0.8143 a été entraîné sur le texte sans accents (cohérence train/inférence).
+
 ## Verification
 1. `make train` local (sans serveur) → run visible dans `mlflow ui` (backend ./mlruns), modèle enregistré au Registry.
 2. `dvc repro` idempotent (2e run : « didn't change ») ; `dvc push` puis `dvc pull` sur un clone → données restaurées.
