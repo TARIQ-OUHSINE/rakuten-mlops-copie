@@ -1,0 +1,119 @@
+name: PR Preflight
+
+on:
+  push:
+    branches:
+      - feat/dev-tyu
+  pull_request:
+    branches:
+      - feat/dev-tyu
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: dev-tyu-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+env:
+  PYTHON_VERSION: "3.11"
+
+jobs:
+  python-review:
+    name: Python Review
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          if [[ -f requirements-dev.txt ]]; then
+            pip install -r requirements-dev.txt
+          elif [[ -f requirements.txt ]]; then
+            pip install -r requirements.txt ruff pytest
+          else
+            pip install ruff pytest
+          fi
+          python -m nltk.downloader stopwords -q 2>/dev/null || true
+      - name: Lint with ruff
+        run: |
+          targets=()
+          [[ -d src ]] && targets+=(src/)
+          [[ -d tests ]] && targets+=(tests/)
+          if (( ${#targets[@]} )); then
+            ruff check "${targets[@]}"
+          else
+            echo "No src/ or tests/ directory yet; skipping lint."
+          fi
+      - name: Run unit tests
+        run: |
+          if [[ -d tests ]]; then
+            python -m pytest tests/ -v
+          else
+            echo "No tests/ directory yet; skipping tests."
+          fi
+
+  loc-500:
+    name: LOC 500
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Enforce the 500-line limit
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+        run: |
+          .github/scripts/check-file-lines.sh "${BASE_SHA:-origin/feat/dev-tyu}" HEAD
+
+  copilot-review:
+    name: Copilot Review
+    if: github.event_name == 'pull_request' && github.event.pull_request.draft == false
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - name: Request review from GitHub Copilot
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const { owner, repo } = context.repo;
+            const pull_number = context.issue.number;
+            try {
+              await github.rest.pulls.requestReviewers({
+                owner,
+                repo,
+                pull_number,
+                reviewers: ['copilot-pull-request-reviewer[bot]'],
+              });
+              core.summary
+                .addHeading('Copilot Review', 3)
+                .addRaw('GitHub Copilot has been requested as a reviewer on this pull request.')
+                .write();
+            } catch (error) {
+              core.warning(
+                `Could not request Copilot review: ${error.message}. ` +
+                'Make sure Copilot code review is enabled for this repository ' +
+                '(Settings > Copilot > Code review), or request it manually from the PR reviewers menu.'
+              );
+              core.summary
+                .addHeading('Copilot Review', 3)
+                .addRaw('Skipped: Copilot code review is not available on this repository. ' +
+                        'Enable it under Settings > Copilot, or add Copilot manually as a reviewer.')
+                .write();
+            }
