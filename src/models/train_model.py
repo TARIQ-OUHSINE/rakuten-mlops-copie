@@ -23,11 +23,12 @@ log = logging.getLogger(__name__)
 def load_splits():
     processed = resolve(load_params()["data"]["processed_dir"])
     train_path, val_path = processed / "train.parquet", processed / "val.parquet"
-    if not train_path.exists():
-        raise SystemExit(
-            f"{train_path} introuvable — lancer d'abord `make data` "
-            "(python -m src.data.make_dataset)"
-        )
+    for path in (train_path, val_path):
+        if not path.exists():
+            raise SystemExit(
+                f"{path} introuvable — lancer d'abord `make data` "
+                "(python -m src.data.make_dataset)"
+            )
     return pd.read_parquet(train_path), pd.read_parquet(val_path)
 
 

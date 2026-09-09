@@ -28,9 +28,10 @@ def _get_stopwords() -> frozenset:
     try:
         stopwords.words("french")
     except LookupError:
-        import nltk
-
-        nltk.download("stopwords", quiet=True)
+        raise SystemExit(
+            "Stopwords NLTK introuvables — lancer d'abord `make setup` "
+            "(python -m nltk.downloader stopwords)"
+        ) from None
 
     all_stopwords = set(_EXTRA_STOPWORDS)
     for lang in ("french", "english", "german", "spanish"):
