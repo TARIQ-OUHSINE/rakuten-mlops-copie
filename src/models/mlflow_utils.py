@@ -90,9 +90,14 @@ def _bootstrap_production_alias(model_name: str, version: str) -> None:
     client = MlflowClient()
     try:
         client.get_model_version_by_alias(model_name, PRODUCTION_ALIAS)
-    except mlflow.exceptions.MlflowException:
-        client.set_registered_model_alias(model_name, PRODUCTION_ALIAS, version)
-        log.info(
-            "[mlflow] alias '%s' pose sur la version %s (bootstrap)",
-            PRODUCTION_ALIAS, version,
-        )
+        return
+    except mlflow.exceptions.MlflowException as exc:
+        # Ne bootstrapper que si l'alias est reellement absent : une erreur
+        # transitoire (reseau, 500) ne doit pas re-pointer 'production'.
+        if exc.error_code not in ("RESOURCE_DOES_NOT_EXIST", "INVALID_PARAMETER_VALUE"):
+            raise
+    client.set_registered_model_alias(model_name, PRODUCTION_ALIAS, version)
+    log.info(
+        "[mlflow] alias '%s' pose sur la version %s (bootstrap)",
+        PRODUCTION_ALIAS, version,
+    )
