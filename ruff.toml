@@ -1,0 +1,2 @@
+# Lint du code MLOps uniquement — la demo Streamlit (legacy DS) est exclue
+extend-exclude = ["src/streamlit", "notebooks", "backup"]
