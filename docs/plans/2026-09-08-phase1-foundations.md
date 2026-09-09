@@ -58,7 +58,7 @@ Today the repo has **no MLOps foundation**: `src/models/train_model.py`, `src/mo
 ### Stage 2 — Data pipeline (from NB01)
 7. `src/config.py` + `params.yaml`: data paths, split ratio/seed, TF-IDF params, LightGBM params.
 8. `src/data/make_dataset.py`: extract cleaning from `notebooks/main_notebooks/01_preprocessing_eda.ipynb` — merge `x_train.csv`+`y_train.csv`, strip HTML (designation+description → `text_clean`), stratified train/val split (seed fixed) → `data/processed/{train,val}.parquet`. CLI: `python -m src.data.make_dataset`.
-9. `src/data/download_data.py`: verify presence + checksums of raw CSVs, clear error message pointing to the challenge source if missing (data is 52 MB, not committed).
+9. `src/data/download_data.py`: verify presence + expected columns of raw CSVs, clear error message pointing to the challenge source if missing (data is 52 MB, not committed).
 
 ### Stage 3 — Baseline model + tests (from NB02)
 10. `src/features/build_features.py`: TfidfVectorizer (max_features=50k, ngram 1-2, sublinear_tf, min_df=2) fit on train / save with joblib.

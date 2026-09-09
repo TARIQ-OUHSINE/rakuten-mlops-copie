@@ -52,7 +52,6 @@ def train(train_df: pd.DataFrame, val_df: pd.DataFrame, params: dict):
         eval_set=[(x_val, y_val)],
         callbacks=[
             lgb.early_stopping(params["early_stopping_rounds"], verbose=False),
-            lgb.log_evaluation(period=50),
         ],
     )
     return clf, vectorizer, le, x_val, y_val

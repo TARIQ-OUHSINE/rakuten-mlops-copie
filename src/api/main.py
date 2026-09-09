@@ -46,8 +46,6 @@ def predict(request: PredictRequest) -> PredictResponse:
     predictor = state["predictor"]
     if predictor is None:
         raise HTTPException(status_code=503, detail="Modele non charge")
-    if not request.designation.strip():
-        raise HTTPException(status_code=422, detail="designation vide")
     predictions = predictor.predict(
         request.designation, request.description, top_k=request.top_k
     )
