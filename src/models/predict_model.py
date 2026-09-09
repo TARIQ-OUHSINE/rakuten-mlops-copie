@@ -28,7 +28,10 @@ class BaselinePredictor:
             try:
                 self._load_from_mlflow(params["mlflow"])
             except Exception as exc:
-                log.warning("Chargement MLflow impossible (%s) — fallback local", exc)
+                log.warning(
+                    "Chargement MLflow impossible (%s) — fallback local",
+                    exc, exc_info=True,
+                )
 
         if self.model_source is None:
             self._load_from_local_dir(model_dir, params["model"])
