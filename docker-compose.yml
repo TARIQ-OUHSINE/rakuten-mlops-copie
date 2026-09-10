@@ -1,0 +1,48 @@
+# Phase 2 — microservices : serveur MLflow, API d'inference, job d'entrainement.
+# Demarrage : docker compose up -d          (mlflow + api)
+# Entrainement : docker compose --profile train run --rm trainer
+
+services:
+  mlflow:
+    image: ghcr.io/mlflow/mlflow:v2.19.0
+    # NB: une seule ligne — avec `>` les lignes plus indentées gardent leurs
+    # sauts de ligne et les options n'atteignent jamais `mlflow server`.
+    command: mlflow server --backend-store-uri sqlite:////mlflow/mlflow.db --artifacts-destination /mlflow/artifacts --host 0.0.0.0 --port 5000
+    volumes:
+      - ./mlflow_data:/mlflow
+    ports:
+      - "5001:5000"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:5000/health', timeout=5)"]
+      interval: 10s
+      timeout: 8s
+      retries: 12
+      start_period: 30s
+
+  api:
+    build:
+      context: .
+      target: runtime
+    environment:
+      MLFLOW_TRACKING_URI: http://mlflow:5000
+    depends_on:
+      mlflow:
+        condition: service_healthy
+    ports:
+      - "8000:8000"
+
+  trainer:
+    build:
+      context: .
+      target: trainer
+    profiles: ["train"]
+    command: dvc repro
+    environment:
+      MLFLOW_TRACKING_URI: http://mlflow:5000
+    volumes:
+      # Repo complet monte : dvc repro met a jour dvc.lock, data/ et models/
+      # directement sur l'hote (le .git est requis par DVC).
+      - .:/app
+    depends_on:
+      mlflow:
+        condition: service_healthy

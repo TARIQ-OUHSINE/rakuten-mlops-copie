@@ -75,8 +75,10 @@ target/
 # Jupyter NB Checkpoints
 .ipynb_checkpoints/
 
-# exclude data from source control by default
-/data/
+# exclude data from source control by default — mais garder les pointeurs DVC
+/data/*
+!/data/*.dvc
+!/data/.gitignore
 
 # Mac OS-specific storage files
 .DS_Store
@@ -93,3 +95,7 @@ target/
 !/models/.gitkeep
 
 .venv/
+
+# MLflow (Phase 2) : store local et volume docker-compose
+/mlruns/
+/mlflow_data/

@@ -94,6 +94,14 @@ def main() -> None:
     metrics = evaluate(clf, x_val, y_val)
     save_artifacts(clf, vectorizer, le, metrics)
 
+    from src.models.mlflow_utils import log_training_run
+
+    try:
+        log_training_run(resolve(params["model"]["dir"]), metrics, params)
+    except Exception:
+        # Le run local reste valide meme si le serveur MLflow est indisponible
+        log.exception("Logging MLflow impossible — artefacts locaux conserves")
+
 
 if __name__ == "__main__":
     main()

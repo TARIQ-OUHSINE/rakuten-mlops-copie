@@ -53,6 +53,7 @@ def model_dir(sample_df, tmp_path_factory) -> Path:
         num_leaves=7,
         min_child_samples=1,
         random_state=42,
+        n_jobs=1,
         verbose=-1,
     )
     clf.fit(x, y)

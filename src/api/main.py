@@ -20,8 +20,12 @@ state: dict = {"predictor": None}
 async def lifespan(app: FastAPI):
     try:
         state["predictor"] = BaselinePredictor()
-        log.info("Modele baseline charge (%s)", state["predictor"].version)
+        log.info(
+            "Modele baseline charge (%s, source=%s)",
+            state["predictor"].version, state["predictor"].model_source,
+        )
     except FileNotFoundError as exc:
+        state["predictor"] = None
         log.error("Artefacts introuvables (%s) — lancer `make train` d'abord", exc)
     yield
     state["predictor"] = None
@@ -38,7 +42,12 @@ app = FastAPI(
 
 @app.get("/health", response_model=HealthResponse)
 def health() -> HealthResponse:
-    return HealthResponse(status="ok", model_loaded=state["predictor"] is not None)
+    predictor = state["predictor"]
+    return HealthResponse(
+        status="ok",
+        model_loaded=predictor is not None,
+        model_source=predictor.model_source if predictor else None,
+    )
 
 
 @app.post("/predict", response_model=PredictResponse)
