@@ -17,6 +17,13 @@ from src.features.build_features import make_vectorizer
 
 FIXTURES_DIR = Path(__file__).parent / "fixtures"
 
+
+@pytest.fixture(autouse=True)
+def _no_ambient_api_key(monkeypatch):
+    """Neutralise une API_KEY exportee dans le shell du developpeur :
+    les tests hors test_security supposent l'auth desactivee."""
+    monkeypatch.delenv("API_KEY", raising=False)
+
 TINY_TFIDF = {
     "max_features": 500,
     "ngram_range": [1, 1],
