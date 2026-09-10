@@ -23,7 +23,9 @@ COPY src/api/ src/api/
 COPY models/ models/
 
 EXPOSE 8000
-CMD ["uvicorn", "src.api.main:app", "--host", "0.0.0.0", "--port", "8000"]
+# Forme shell pour interpoler UVICORN_WORKERS (1 par defaut : chaque worker
+# charge le modele en memoire)
+CMD uvicorn src.api.main:app --host 0.0.0.0 --port 8000 --workers ${UVICORN_WORKERS:-1}
 
 # Image du job d'entrainement (docker compose --profile train) :
 # la meme base + git/dvc pour `dvc repro` sur le repo monte dans /app.
