@@ -24,8 +24,8 @@ test:             ## Lance les tests unitaires
 lint:             ## Lint du code source
 	$(BIN)/ruff check src/ tests/
 
-mlflow-ui:        ## UI MLflow locale (backend ./mlruns)
-	$(BIN)/mlflow ui --backend-store-uri ./mlruns --port 5001
+mlflow-ui:        ## UI MLflow locale (backend sqlite local)
+	$(BIN)/mlflow ui --backend-store-uri sqlite:///mlruns.db --port 5001
 
 api:              ## Lance l'API en local
 	$(BIN)/uvicorn src.api.main:app --host 0.0.0.0 --port $(PORT) --reload

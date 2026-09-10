@@ -35,7 +35,8 @@ model:
   version: baseline-tfidf-lgbm-v1
 
 # Suivi d'experiences (Phase 2) — surcharge par env MLFLOW_TRACKING_URI
+# sqlite : le file store (./mlruns) est deprecie depuis MLflow 3.x
 mlflow:
-  tracking_uri: ./mlruns
+  tracking_uri: sqlite:///mlruns.db
   experiment_name: rakuten-baseline
   registered_model_name: rakuten-tfidf-lgbm

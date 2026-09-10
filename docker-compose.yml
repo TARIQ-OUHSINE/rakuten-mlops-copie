@@ -4,10 +4,12 @@
 
 services:
   mlflow:
-    image: ghcr.io/mlflow/mlflow:v2.19.0
+    image: ghcr.io/mlflow/mlflow:v3.16.0
     # NB: une seule ligne — avec `>` les lignes plus indentées gardent leurs
     # sauts de ligne et les options n'atteignent jamais `mlflow server`.
-    command: mlflow server --backend-store-uri sqlite:////mlflow/mlflow.db --artifacts-destination /mlflow/artifacts --host 0.0.0.0 --port 5000
+    # --allowed-hosts : MLflow 3.x rejette les Host headers non-localhost
+    # (protection DNS rebinding) — il faut autoriser le nom de service compose.
+    command: mlflow server --backend-store-uri sqlite:////mlflow/mlflow.db --artifacts-destination /mlflow/artifacts --host 0.0.0.0 --port 5000 --allowed-hosts "mlflow:5000,localhost:5001,localhost:5000,127.0.0.1:*"
     environment:
       # Les cookies localhost cumules (Airflow :8080, Supabase :54323...) depassent
       # la limite par defaut de gunicorn (~8 Ko/champ) -> 431 sur l'UI.

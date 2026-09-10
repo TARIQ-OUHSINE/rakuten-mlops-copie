@@ -60,6 +60,22 @@ client ──:8000──▶ nginx ──▶ api-1 ─┐
   (nom d'image forcé en minuscules — exigence Docker, le repo GitHub contient
   des majuscules).
 
+## Mise à jour de sécurité des dépendances (scan Trivy)
+
+Le premier scan Trivy a bloqué la PR sur des CVE réelles des pins de 2024 :
+3 CRITICAL (RCE lightgbm 4.5, zip-slip nltk 3.9.1, path traversal mlflow 2.19)
+et ~20 HIGH. Remise à niveau : **lightgbm 4.7, nltk 3.10.3, pyarrow 23,
+fastapi 0.141/uvicorn 0.52, mlflow 3.16** (client + image serveur compose) +
+upgrade pip/setuptools/wheel dans l'image. Les paquets porteurs d'artefacts
+picklés (scikit-learn, numpy, scipy, joblib, pandas) restent épinglés.
+
+Conséquences MLflow 3.x gérées :
+- le file store `./mlruns` est déprécié → tracking local sur **`sqlite:///mlruns.db`** ;
+- protection DNS rebinding du serveur → `--allowed-hosts "mlflow:5000,..."`
+  dans compose (sinon 403 « Invalid Host header » sur les appels inter-conteneurs) ;
+- migration du volume existant : `mlflow db upgrade sqlite:///mlflow_data/mlflow.db`
+  (lossless, schéma 2.x → 3.x, modèle et alias conservés).
+
 ## Orchestration bout en bout
 
 ```bash

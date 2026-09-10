@@ -7,7 +7,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends libgomp1 \
 WORKDIR /app
 
 COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt \
+# --upgrade pip/setuptools/wheel : les versions embarquees dans l'image de base
+# trainent des CVE corrigees (ex. wheel < 0.46.2)
+RUN pip install --no-cache-dir --upgrade pip setuptools wheel \
+    && pip install --no-cache-dir -r requirements.txt \
     && python -m nltk.downloader stopwords -d /usr/local/nltk_data
 
 COPY params.yaml .

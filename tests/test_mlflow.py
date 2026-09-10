@@ -39,7 +39,7 @@ def make_params(model_dir, tracking_uri) -> dict:
 @pytest.fixture()
 def tracked_model(model_dir, tmp_path, monkeypatch):
     """Log un run complet vers un file store temporaire, retourne (params, uri)."""
-    tracking_uri = tmp_path / "mlruns"
+    tracking_uri = f"sqlite:///{tmp_path}/mlruns.db"
     monkeypatch.delenv("MLFLOW_TRACKING_URI", raising=False)
     params = make_params(model_dir, tracking_uri)
     (model_dir / "metrics.json").write_text(json.dumps(FAKE_METRICS))
