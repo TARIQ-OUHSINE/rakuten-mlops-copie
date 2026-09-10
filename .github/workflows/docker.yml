@@ -48,6 +48,7 @@ jobs:
           severity: CRITICAL,HIGH
           exit-code: "1"
           ignore-unfixed: true
+          trivyignores: .trivyignore
       - name: Smoke test (compose, mode degrade sans artefacts)
         env:
           API_KEY: ci-smoke-key

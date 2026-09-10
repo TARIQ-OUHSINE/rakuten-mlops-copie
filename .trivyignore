@@ -1,0 +1,11 @@
+# Faux positifs : Trivy parse pip/_vendor/vendor.txt (manifeste de vendoring
+# interne de pip) comme un requirements.txt. Les versions listees sont des
+# copies embarquees DANS pip lui-meme (non importables par l'application) et
+# aucune release de pip ne les met encore a jour. Nos dependances applicatives
+# sont saines : msgpack>=1.2.1 et setuptools>=78.1.1 epingles dans requirements.txt.
+
+# msgpack 1.1.2 vendore dans pip (out-of-bounds read)
+GHSA-6v7p-g79w-8964
+
+# setuptools 70.3.0 vendore dans pip (path traversal)
+CVE-2025-47273
