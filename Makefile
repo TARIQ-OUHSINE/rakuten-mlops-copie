@@ -4,7 +4,7 @@ BIN         := $(VENV)/bin
 IMAGE       := rakuten-api
 PORT        ?= 8000
 
-.PHONY: setup data train test api lint docker-build docker-run clean mlflow-ui up down train-service
+.PHONY: setup data train test api lint docker-build docker-run clean mlflow-ui up down train-service pipeline
 
 setup:            ## Cree le venv et installe les dependances dev
 	$(PYTHON) -m venv $(VENV)
@@ -43,6 +43,10 @@ down:             ## Arrete les services docker compose
 
 train-service:    ## Lance le job d'entrainement conteneurise (dvc repro)
 	docker compose --profile train run --rm trainer
+
+pipeline:         ## Pipeline complet : data -> train -> MLflow/Registry -> remote DVC
+	$(BIN)/dvc repro
+	$(BIN)/dvc push
 
 docker-run:       ## Lance le conteneur API
 	docker run --rm -p $(PORT):8000 $(IMAGE)
