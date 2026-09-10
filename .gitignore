@@ -98,4 +98,5 @@ target/
 
 # MLflow (Phase 2) : store local et volume docker-compose
 /mlruns/
+/mlruns.db
 /mlflow_data/

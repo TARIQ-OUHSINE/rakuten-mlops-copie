@@ -53,6 +53,12 @@ def test_predict_empty_designation(client):
     assert r.status_code == 422
 
 
+def test_response_has_process_time_header(client):
+    r = client.get("/health")
+    assert "x-process-time-ms" in r.headers
+    assert float(r.headers["x-process-time-ms"]) >= 0
+
+
 def test_predict_model_not_loaded(model_dir):
     state["predictor"] = None
     with TestClient(app) as c:

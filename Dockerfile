@@ -7,7 +7,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends libgomp1 \
 WORKDIR /app
 
 COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt \
+# --upgrade pip/setuptools/wheel : les versions embarquees dans l'image de base
+# trainent des CVE corrigees (ex. wheel < 0.46.2)
+RUN pip install --no-cache-dir --upgrade pip setuptools wheel \
+    && pip install --no-cache-dir -r requirements.txt \
     && python -m nltk.downloader stopwords -d /usr/local/nltk_data
 
 COPY params.yaml .
@@ -23,7 +26,9 @@ COPY src/api/ src/api/
 COPY models/ models/
 
 EXPOSE 8000
-CMD ["uvicorn", "src.api.main:app", "--host", "0.0.0.0", "--port", "8000"]
+# Forme shell pour interpoler UVICORN_WORKERS (1 par defaut : chaque worker
+# charge le modele en memoire)
+CMD exec uvicorn src.api.main:app --host 0.0.0.0 --port 8000 --workers ${UVICORN_WORKERS:-1}
 
 # Image du job d'entrainement (docker compose --profile train) :
 # la meme base + git/dvc pour `dvc repro` sur le repo monte dans /app.

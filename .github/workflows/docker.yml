@@ -1,0 +1,111 @@
+name: Docker CI
+
+on:
+  pull_request:
+    branches:
+      - feat/dev-tyu
+  push:
+    branches:
+      - feat/dev-tyu
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: docker-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+# NB: le nom d'image GHCR est calcule en minuscules dans le job publish
+# (github.repository contient des majuscules, invalides pour Docker).
+
+jobs:
+  build-scan-smoke:
+    name: Build, Trivy & Smoke Test
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+      - name: Build runtime image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          target: runtime
+          load: true
+          tags: rakuten-api:ci
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+      - name: Trivy vulnerability scan
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          image-ref: rakuten-api:ci
+          format: table
+          severity: CRITICAL,HIGH
+          exit-code: "1"
+          ignore-unfixed: true
+          trivyignores: .trivyignore
+      - name: Smoke test (compose, mode degrade sans artefacts)
+        env:
+          API_KEY: ci-smoke-key
+        run: |
+          # compose reconstruit l'api depuis le cache local du daemon
+          # (les layers viennent d'etre charges par build-push-action `load: true`)
+          docker compose up -d --build
+          for i in $(seq 1 30); do
+            code=$(curl -s -o /dev/null -w '%{http_code}' localhost:8000/health || true)
+            [ "$code" = "200" ] && break
+            sleep 2
+          done
+          echo "health: $(curl -s localhost:8000/health)"
+          curl -sf localhost:8000/health | grep -q '"model_loaded":false'
+          no_key=$(curl -s -o /dev/null -w '%{http_code}' -X POST localhost:8000/predict \
+            -H 'Content-Type: application/json' -d '{"designation":"livre"}')
+          [ "$no_key" = "401" ]         # auth active dans le CI
+          with_key=$(curl -s -o /dev/null -w '%{http_code}' -X POST localhost:8000/predict \
+            -H 'Content-Type: application/json' -H 'X-API-Key: ci-smoke-key' \
+            -d '{"designation":"livre"}')
+          [ "$with_key" = "503" ]       # pas de modele dans le CI -> 503 attendu
+          docker compose down
+      - name: Show compose logs on failure
+        if: failure()
+        run: docker compose logs
+
+  publish:
+    name: Push image to GHCR
+    if: github.event_name == 'push'
+    needs: build-scan-smoke
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+      - name: Compute lowercase image name
+        run: echo "IMAGE=ghcr.io/${GITHUB_REPOSITORY,,}/api" >> "$GITHUB_ENV"
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          target: runtime
+          push: true
+          tags: |
+            ${{ env.IMAGE }}:latest
+            ${{ env.IMAGE }}:${{ github.sha }}
+          cache-from: type=gha

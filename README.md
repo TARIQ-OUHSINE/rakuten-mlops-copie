@@ -60,6 +60,23 @@ make down
 
 Workflow complet (promotion d'un modèle, restart API) : `docs/phase2_summary.md`.
 
+Phase 3 — Sécurité, scalabilité & CI Docker
+------------
+
+`/predict` est protégé par clé d'API (header `X-API-Key`, env `API_KEY` — auth
+désactivée si non configurée) ; l'API tourne derrière nginx avec N replicas ;
+le CI construit l'image, la scanne (Trivy) et exécute un smoke test compose sur
+chaque PR, puis publie sur GHCR au merge.
+
+```bash
+API_KEY=s3cret make up REPLICAS=3   # nginx :8000 -> 3 replicas api
+make pipeline                        # dvc repro + dvc push (bout en bout)
+```
+
+Variables d'env : `API_KEY` (auth), `REPLICAS` (replicas api, defaut 2),
+`UVICORN_WORKERS` (workers par conteneur, defaut 1).
+Détails : `docs/phase3_summary.md`.
+
 Project Organization
 ------------
 

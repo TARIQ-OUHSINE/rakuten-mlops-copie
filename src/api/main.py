@@ -4,11 +4,14 @@ Lancement local : uvicorn src.api.main:app --reload
 """
 
 import logging
+import time
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, HTTPException
+from fastapi import Depends, FastAPI, HTTPException
+from fastapi.middleware.gzip import GZipMiddleware
 
 from src.api.schemas import HealthResponse, PredictRequest, PredictResponse
+from src.api.security import require_api_key
 from src.models.predict_model import BaselinePredictor
 
 log = logging.getLogger("uvicorn.error")
@@ -39,6 +42,16 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+app.add_middleware(GZipMiddleware, minimum_size=1024)
+
+
+@app.middleware("http")
+async def add_process_time_header(request, call_next):
+    start = time.perf_counter()
+    response = await call_next(request)
+    response.headers["X-Process-Time-Ms"] = f"{(time.perf_counter() - start) * 1000:.1f}"
+    return response
+
 
 @app.get("/health", response_model=HealthResponse)
 def health() -> HealthResponse:
@@ -50,7 +63,11 @@ def health() -> HealthResponse:
     )
 
 
-@app.post("/predict", response_model=PredictResponse)
+@app.post(
+    "/predict",
+    response_model=PredictResponse,
+    dependencies=[Depends(require_api_key)],
+)
 def predict(request: PredictRequest) -> PredictResponse:
     predictor = state["predictor"]
     if predictor is None:
