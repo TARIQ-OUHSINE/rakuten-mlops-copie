@@ -33,8 +33,10 @@ api:              ## Lance l'API en local
 docker-build:     ## Construit l'image Docker de l'API
 	docker build --target runtime -t $(IMAGE) .
 
-up:               ## Demarre les services mlflow + api (docker compose)
-	docker compose up -d
+REPLICAS ?= 2
+
+up:               ## Demarre mlflow + api (x$(REPLICAS)) + nginx
+	docker compose up -d --build --scale api=$(REPLICAS)
 
 down:             ## Arrete les services docker compose
 	docker compose down
