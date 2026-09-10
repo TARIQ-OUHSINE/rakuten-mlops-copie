@@ -6,9 +6,10 @@ Lancement local : uvicorn src.api.main:app --reload
 import logging
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, HTTPException
+from fastapi import Depends, FastAPI, HTTPException
 
 from src.api.schemas import HealthResponse, PredictRequest, PredictResponse
+from src.api.security import require_api_key
 from src.models.predict_model import BaselinePredictor
 
 log = logging.getLogger("uvicorn.error")
@@ -50,7 +51,11 @@ def health() -> HealthResponse:
     )
 
 
-@app.post("/predict", response_model=PredictResponse)
+@app.post(
+    "/predict",
+    response_model=PredictResponse,
+    dependencies=[Depends(require_api_key)],
+)
 def predict(request: PredictRequest) -> PredictResponse:
     predictor = state["predictor"]
     if predictor is None:
