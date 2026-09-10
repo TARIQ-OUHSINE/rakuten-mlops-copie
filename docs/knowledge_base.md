@@ -257,3 +257,104 @@ Enfin, l'ensemble du pipeline est entièrement reproductible via cinq notebooks 
 - 🎤 **Présentation finale (soutenance) : 06/11/2026**
 - 📅 **Prochain point : 07/09 à 16h00**
 - PS : ne pas oublier d'envoyer les IDs GitHub !
+
+## ✅ Bilan d'implémentation — Phase 1 : Fondations & Conteneurisation
+
+> Livrée le 09/09/2026 (PR #1, `feat/phase1` → `feat/dev-tyu`). Plan : `docs/plans/2026-09-08-phase1-foundations.md`.
+
+### Ce qui a été construit
+
+- **Pipeline scripté** (extrait des notebooks de la phase data-science) :
+  - `src/data/` : vérification des CSV bruts (52 Mo, non committés), nettoyage texte
+    (HTML → minuscules → non-alpha → stopwords NLTK multilangues → stemming FR),
+    split stratifié 85/15 → `data/processed/{train,val}.parquet`
+  - `src/features/build_features.py` : TF-IDF 50k features, n-grammes 1-2, `sublinear_tf`
+  - `src/models/train_model.py` : LightGBM multiclass (27 classes, class_weight balanced,
+    early stopping) → `models/baseline/{model,vectorizer,label_encoder}.joblib` + `metrics.json`
+- **API FastAPI** (`src/api/`) : `POST /predict` (top-k avec probabilités), `GET /health` ;
+  validation Pydantic (`field_validator` sur designation vide) ; le lifespan tolère
+  l'absence d'artefacts (503 sur /predict, jamais de crash au démarrage)
+- **Conteneurisation** : Dockerfile `python:3.11-slim` + libgomp (LightGBM),
+  stopwords NLTK pré-téléchargés dans l'image
+- **Qualité** : 24 tests unitaires (fixtures committées ~100 lignes, modèle jouet —
+  pas besoin des données brutes), ruff, Makefile (`setup/data/train/test/api/docker-*`)
+- **Config unique** : `params.yaml` chargé par `src/config.py` (lru_cache)
+
+### Résultat
+
+**F1 weighted validation = 0.8143** (macro 0.7988, accuracy 0.8109) — baseline
+volontairement simple, servie en < 1 s par requête.
+
+### Leçons retenues (reviews Copilot, 4 rounds)
+
+- `RuntimeError` plutôt que `SystemExit` dans le code partagé appelé par l'API
+  (SystemExit hérite de BaseException et traverse la gestion d'erreurs FastAPI)
+- `COPY models/ models/` plutôt que `models/baseline/` : l'image doit se construire
+  sur un clone frais, sans artefacts entraînés
+- Vérifier les claims d'une review IA avant de corriger : 2 des 5 findings étaient
+  des faux positifs (règles `.dockerignore` inexistantes, chemin NLTK valide)
+- Nettoyage baseline : la regex `[^a-z\s]` supprime les accents — amélioration
+  reportée au modèle v2 car elle impose un ré-entraînement complet
+
+## ✅ Bilan d'implémentation — Phase 2 : Microservices, Suivi & Versioning
+
+> Livrée le 10/09/2026 (PR #2, `feat/phase2` → `feat/dev-tyu`). Plan : `docs/plans/2026-09-08-phase2-mlflow-dvc-microservices.md` ; détails : `docs/phase2_summary.md`.
+
+### Suivi d'expériences (MLflow)
+
+- Chaque `make train` = un run MLflow : hyperparamètres (tfidf_*, lgbm_*), métriques
+  globales + F1 par classe, artefacts (`metrics.json`), et le modèle enregistré au
+  **Model Registry** (`rakuten-tfidf-lgbm`)
+- Le modèle est un **pyfunc unique** (`src/models/mlflow_utils.py`) embarquant les
+  trois artefacts (model + vectorizer + label_encoder) : un seul objet atomique à
+  promouvoir/charger
+- Gestion des versions par **alias** `production` (les « stages » MLflow sont
+  dépréciés) ; alias posé automatiquement sur la 1re version uniquement, promotion
+  manuelle ensuite — un échec transitoire ne peut pas re-pointer l'alias
+- Dégradé propre : entraînement sans serveur (file store `./mlruns`), échec du
+  logging non bloquant (les artefacts locaux restent la source de vérité)
+
+### Versioning données & pipeline (DVC)
+
+- CSV bruts tracés (`data/*.csv.dvc` committés), remote local `~/dvc-store/rakuten`
+  (swappable vers S3/GCS sans toucher au pipeline)
+- `dvc.yaml` : stages `prepare` → `train` ; `dvc repro` idempotent vérifié
+  (« didn't change, skipping ») ; `dvc push`/`pull` opérationnels
+- Choix assumé : la section `mlflow` de params.yaml n'est **pas** déclarée dans les
+  params DVC — la config de tracking n'est pas un input du modèle, la déclarer
+  forcerait un ré-entraînement de 40 min à chaque changement d'URI
+
+### Microservices (docker-compose)
+
+- `mlflow` : image officielle `ghcr.io/mlflow/mlflow:v2.19.0`, backend sqlite,
+  volume `./mlflow_data`, UI sur **:5001**, healthcheck avec timeout
+- `api` : image Phase 1 (stage `runtime`), `MLFLOW_TRACKING_URI=http://mlflow:5000`,
+  attend le healthcheck mlflow ; charge `models:/rakuten-tfidf-lgbm@production`,
+  fallback `models/baseline/` ; `/health` expose `model_source` (`mlflow:vN` | `local`)
+- `trainer` : job one-shot (profile `train`, Dockerfile multi-stage avec git+dvc),
+  `dvc repro` sur le repo monté → nouveau run + nouvelle version au Registry
+- `make up / down / train-service / mlflow-ui`
+
+### Vérifié en conditions réelles
+
+- Entraînement complet : F1 0.8143 (identique Phase 1), modèle v1 + alias `production`
+- API servie depuis le Registry du serveur compose : `/health` → `"model_source": "mlflow:v1"`,
+  prédictions identiques au modèle local
+- 29/29 tests **hors ligne** (le tracking est testé sur un file store temporaire)
+
+### Leçons retenues
+
+- **YAML `command: >` piège** : les lignes plus indentées que la première gardent
+  leurs sauts de ligne → `--host 0.0.0.0` n'atteignait jamais `mlflow server`
+  (bind 127.0.0.1, healthcheck local OK mais connexions inter-conteneurs refusées).
+  Écrire la commande sur une seule ligne.
+- **`mlflow.set_tracking_uri()` global prime sur la variable d'env** : le predictor
+  doit poser l'URI explicitement, sinon un appel antérieur dans le process la fige
+- **Mémoire du trainer conteneurisé** : LightGBM (72k × 50k) a besoin de ≥ 4 Go
+  libres dans la VM Docker — OOM exit 137 si la VM est partagée avec d'autres
+  stacks (Airflow, Supabase). `make train` local non concerné. En cas de job tué,
+  les artefacts se restaurent depuis le run MLflow (`mlruns/<exp>/<run>/artifacts/model/artifacts/`).
+- **DVC supprime les outputs d'un stage avant de le relancer** : un crash du stage
+  `train` laisse `models/baseline/` vide — d'où l'intérêt du Registry comme copie
+- Attention aux pipes qui masquent les codes d'erreur (`cmd | tail` → exit 0 même
+  si cmd échoue) lors des vérifications
