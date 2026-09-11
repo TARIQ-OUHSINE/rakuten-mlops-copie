@@ -100,3 +100,7 @@ target/
 /mlruns/
 /mlruns.db
 /mlflow_data/
+
+# Monitoring (Phase 4) : donnees locales prometheus + journal de predictions
+/prometheus_data/
+/monitoring_data/
