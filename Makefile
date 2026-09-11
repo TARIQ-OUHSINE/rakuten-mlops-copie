@@ -4,7 +4,7 @@ BIN         := $(VENV)/bin
 IMAGE       := rakuten-api
 PORT        ?= 8000
 
-.PHONY: setup data train test api lint docker-build docker-run clean mlflow-ui up down train-service pipeline
+.PHONY: setup data train test api lint docker-build docker-run clean mlflow-ui up down train-service pipeline traffic drift-report
 
 setup:            ## Cree le venv et installe les dependances dev
 	$(PYTHON) -m venv $(VENV)
@@ -47,6 +47,12 @@ train-service:    ## Lance le job d'entrainement conteneurise (dvc repro)
 pipeline:         ## Pipeline complet : data -> train -> MLflow/Registry -> remote DVC
 	$(BIN)/dvc repro
 	$(BIN)/dvc push
+
+traffic:          ## Envoie N=100 requetes de demo (API_KEY/API_URL via env)
+	$(BIN)/python -m src.monitoring.send_traffic $(N)
+
+drift-report:     ## Evalue la derive (rapport HTML + metriques pushgateway)
+	docker compose --profile drift run --rm drift
 
 docker-run:       ## Lance le conteneur API
 	docker run --rm -p $(PORT):8000 $(IMAGE)
