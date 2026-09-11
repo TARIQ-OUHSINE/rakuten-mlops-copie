@@ -871,3 +871,69 @@ restent épinglés pour ne pas invalider les modèles entraînés.
 - Une expérience d'hyperparamètres non committée dans `params.yaml` est **ramassée
   par `dvc repro`** (les params sont des deps) : les résultats d'expérience se
   sauvegardent avant restauration (`models/experiment-lgbm127/`)
+
+
+> **Décision Phase 4 — ré-entraînement : alerte + commande unique (human-in-the-loop).**
+> Le job de drift évalue les seuils Evidently ; si dérive → alerte (exit code +
+> métrique Prometheus + log) et le ré-entraînement reste UNE commande (`make pipeline`).
+> Défendable en soutenance : évite les retrains sur faux positifs et le problème
+> mémoire du trainer.
+
+## ✅ Bilan d'implémentation — Phase 4 : Monitoring & Maintenance
+
+> Livrée le 11/09/2026 (PR `feat/phase4` → `feat/dev-tyu`).
+> Plan : `docs/plans/2026-09-11-phase4-monitoring-drift.md` ; détails : `docs/phase4_summary.md`.
+
+### Monitoring Prometheus/Grafana
+
+- **API instrumentée** (`src/api/metrics.py`) : latence/débit/statuts par endpoint
+  (prometheus-fastapi-instrumentator) + métriques métier —
+  `rakuten_predictions_total{prdtypecode}` et `rakuten_prediction_confidence`
+  (histogramme de la proba top-1, signal précoce de dérive)
+- **Prometheus scrape les replicas api en direct** (dns_sd sur le nom de service
+  compose, pas via nginx — chaque replica doit être observé individuellement)
+- **Grafana provisionné par code** (datasource + dashboard JSON committés,
+  5 panneaux) : `make up` → dashboard prêt sur :3001, zéro clic de config
+- **Journal des prédictions** : une ligne JSONL par prédiction (features dérivées
+  du texte, classe prédite, proba) si `PREDICTIONS_LOG_PATH` est défini —
+  O_APPEND atomique, compatible multi-replicas ; désactivé par défaut
+
+### Détection de dérive (Evidently)
+
+- Job one-shot conteneurisé (`make drift-report`, image dédiée — evidently reste
+  hors de l'image API) : référence = échantillon seedé du jeu de validation
+  **re-prédit par le modèle courant** (même chemin Registry/local que l'API) ;
+  current = journal JSONL ; colonnes surveillées : longueurs de texte (entrées),
+  classe prédite (sorties), confiance
+- Sorties : rapport HTML horodaté, gauges `rakuten_drift_{share,detected}` au
+  pushgateway (panneau Grafana avec seuil rouge), **exit 1 si dérive**
+- **Human-in-the-loop assumé** : pas de retrain automatique — l'alerte pointe vers
+  le runbook (`make pipeline` → comparaison des runs → promotion manuelle de
+  l'alias → restart api)
+
+### Vérifié en conditions réelles
+
+- 42/42 tests hors ligne (7 nouveaux : métriques, JSONL, dérive)
+- Stack 7 services up ; trafic normal (50 req) → 3/3 targets Prometheus up,
+  dashboard peuplé, `drift_share=0.00` exit 0 ; trafic simulé `--drift`
+  (textes tronqués à 3 mots) → `drift_share=0.75`, WARNING, exit 1, gauge 0.75
+  visible dans Prometheus et panneau Grafana rouge
+
+### Leçons retenues
+
+- **Taille de la référence Evidently** : une référence complète (11k lignes) face à
+  une fenêtre courante de 50 rend les tests K-S hypersensibles → `drift_share=1.0`
+  sur du trafic **normal** (faux positif systématique, vécu). Échantillonner la
+  référence à une taille comparable (500, seedée) → 0.00 sur trafic normal tout en
+  détectant la vraie dérive (0.75). Toujours **calibrer le détecteur sur du trafic
+  sain avant de lui faire confiance**.
+- L'API evidently 0.7.x diffère des exemples 0.4 qui circulent : `Report([...]).run()`
+  retourne un résultat dont le JSON expose `metric_name` (pas `metric_id`) — sonder
+  l'API installée avant d'écrire le parsing.
+- `make` traduit l'échec d'une recette en **exit 2** (le exit 1 du job est visible
+  dans les logs, pas dans `$?` de make) — utiliser le code du job directement si un
+  cron doit réagir.
+- Port :3000 souvent occupé par un dev server node → Grafana mappé sur :3001.
+- `docker compose up` d'un service dont l'image doit être (re)construite peut
+  échouer silencieusement au milieu d'un `make up` verbeux — vérifier
+  `docker compose ps` après tout démarrage (leçon récurrente depuis la Phase 3).
