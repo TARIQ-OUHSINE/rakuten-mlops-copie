@@ -77,6 +77,21 @@ services:
     ports:
       - "9091:9091"
 
+  drift:
+    build:
+      context: .
+      target: monitoring
+    profiles: ["drift"]
+    environment:
+      MLFLOW_TRACKING_URI: http://mlflow:5000
+      PUSHGATEWAY_URL: pushgateway:9091
+    volumes:
+      - ./monitoring_data:/app/monitoring_data
+      - ./data:/app/data
+    depends_on:
+      mlflow:
+        condition: service_healthy
+
   trainer:
     build:
       context: .

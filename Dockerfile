@@ -30,6 +30,13 @@ EXPOSE 8000
 # charge le modele en memoire)
 CMD exec uvicorn src.api.main:app --host 0.0.0.0 --port 8000 --workers ${UVICORN_WORKERS:-1}
 
+# Image du job de derive (docker compose --profile drift) : evidently reste
+# hors de l'image API (lourd, inutile au serving).
+FROM runtime AS monitoring
+RUN pip install --no-cache-dir evidently==0.7.23
+COPY src/monitoring/ src/monitoring/
+CMD ["python", "-m", "src.monitoring.drift_report"]
+
 # Image du job d'entrainement (docker compose --profile train) :
 # la meme base + git/dvc pour `dvc repro` sur le repo monte dans /app.
 FROM runtime AS trainer

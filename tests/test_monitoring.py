@@ -1,10 +1,12 @@
-"""Tests du monitoring : /metrics, metriques custom, journal JSONL."""
+"""Tests du monitoring : /metrics, metriques custom, journal JSONL, derive."""
 
 import json
 
+import pandas as pd
 from fastapi.testclient import TestClient
 
 from src.api.main import app, state
+from src.monitoring.drift_report import build_reference, evaluate_drift
 
 
 class FakePredictor:
@@ -61,3 +63,37 @@ def test_no_jsonl_when_env_unset(tmp_path, monkeypatch):
         state["predictor"] = FakePredictor()
         r = client.post("/predict", json={"designation": "livre"})
     assert r.status_code == 200  # logging desactive, pas d'erreur
+
+
+def _fake_frame(chars=50, words=8, code=10, proba=0.9, n=50):
+    # legere variance pour que les tests statistiques aient une distribution
+    return pd.DataFrame({
+        "designation_chars": [chars + i % 5 for i in range(n)],
+        "designation_words": [words + i % 3 for i in range(n)],
+        "prdtypecode": [code + (i % 2) * 30 for i in range(n)],
+        "proba": [round(proba - (i % 4) * 0.02, 2) for i in range(n)],
+    })
+
+
+def test_no_drift_on_identical_data(tmp_path):
+    ref = _fake_frame()
+    result = evaluate_drift(ref, ref.copy(), reports_dir=tmp_path)
+    assert result["drift_detected"] is False
+    assert result["drift_share"] == 0.0
+    assert (tmp_path / result["report_name"]).exists()
+
+
+def test_drift_detected_on_shifted_data(tmp_path):
+    ref = _fake_frame(chars=200, words=30, proba=0.9)
+    cur = _fake_frame(chars=15, words=3, proba=0.4)
+    result = evaluate_drift(ref, cur, reports_dir=tmp_path)
+    assert result["drift_detected"] is True
+    assert result["drift_share"] > 0.3
+
+
+def test_build_reference_shape(model_dir, sample_df):
+    ref = build_reference(sample_df.head(10), model_dir=model_dir)
+    assert set(ref.columns) == {
+        "designation_chars", "designation_words", "prdtypecode", "proba",
+    }
+    assert len(ref) == 10
