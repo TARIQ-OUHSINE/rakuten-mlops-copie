@@ -43,11 +43,29 @@ client ──:8000──▶ nginx ──▶ api xN ──/metrics──▶ prome
   le **modèle courant** (même chemin Registry/local que l'API) → mêmes colonnes que
   le journal. Une référence complète (11k) rend les tests K-S hypersensibles
   (faux positif systématique — vécu).
-- **Colonnes surveillées** : `designation_chars`, `designation_words` (dérive des
-  entrées), `prdtypecode` (dérive des sorties), `proba` (dérive de confiance).
+- **Colonnes surveillées** : `text_chars`, `text_words` (dérive des entrées, mesurées
+  sur le texte combiné nettoyé — même représentation des deux côtés), `prdtypecode`
+  (dérive des sorties), `proba` (dérive de confiance).
 - **Human-in-the-loop** (décision Phase 4) : le job **alerte** (exit 1, gauge rouge)
   mais ne ré-entraîne pas — retrain sur faux positif = 40 min + risque de promouvoir
   un modèle non validé. La remédiation reste une commande : `make pipeline`.
+
+## Limites connues (Phase 5+)
+
+- **Rétention du journal JSONL** : le fichier est en append-only. `current_window`
+  borne la *comparaison* (n dernières lignes lues via un `deque`, mémoire O(window))
+  mais pas la *taille disque* — prévoir une rotation/archivage pour un déploiement
+  continu de longue durée.
+- **Fenêtre inter-versions** : `model_version` est journalisé mais la fenêtre courante
+  peut encore mélanger les sorties de deux modèles juste après une promotion (le
+  filtrage par version au chargement est possible mais reporté).
+- **Double nettoyage** : `predict()` et `log_prediction()` appellent chacun
+  `build_text_combined` — surcoût négligeable devant TF-IDF+LGBM, mais dédoublonnable
+  en exposant le texte nettoyé.
+- **Idempotence du nettoyage** : la démo envoie `text_combined` (déjà nettoyé) comme
+  `designation` ; le re-nettoyage côté API est idempotent en pratique (drift 0.00
+  vérifié sur trafic normal) mais mesurer les mêmes champs bruts des deux côtés
+  serait plus robuste si des données brutes de validation étaient disponibles.
 
 ## Runbook de maintenance
 
@@ -65,14 +83,17 @@ client ──:8000──▶ nginx ──▶ api xN ──/metrics──▶ prome
 
 ## Démo soutenance
 
+Envoyer un échantillon suffisant (≥ `min_current_rows` = 100) : sous ce seuil le
+job refuse de statuer plutôt que de produire un verdict K-S bruité.
+
 ```bash
 API_KEY=demo make up                                  # stack complète (7 services)
-API_KEY=demo make traffic N=100                       # trafic normal
+API_KEY=demo make traffic N=300                       # trafic normal
 open http://localhost:3001/d/rakuten-api              # dashboard peuplé
-make drift-report                                     # exit 0, "Pas de derive"
-API_KEY=demo .venv/bin/python -m src.monitoring.send_traffic 60 --drift
-make drift-report                                     # exit 1, DERIVE DETECTEE
-# panneau "Drift share" passe au rouge (0.75) ; rapport HTML dans monitoring_data/reports/
+make drift-report                                     # "Pas de derive" (make exit 0)
+API_KEY=demo make traffic N=300 ARGS="--drift"        # trafic decale
+make drift-report                                     # DERIVE DETECTEE (make exit 2)
+# panneau "Drift share" passe au rouge ; rapport HTML dans monitoring_data/reports/
 ```
 
 ## Hors périmètre

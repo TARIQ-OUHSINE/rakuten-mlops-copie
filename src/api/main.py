@@ -81,5 +81,5 @@ def predict(request: PredictRequest) -> PredictResponse:
     )
     top = predictions[0]
     observe_prediction(top)
-    log_prediction(request.designation, request.description, top)
+    log_prediction(request.designation, request.description, top, predictor.version)
     return PredictResponse(predictions=predictions, model_version=predictor.version)

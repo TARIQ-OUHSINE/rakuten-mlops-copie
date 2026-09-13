@@ -47,12 +47,16 @@ def observe_prediction(top: dict) -> None:
     PREDICTION_CONFIDENCE.observe(top["proba"])
 
 
-def log_prediction(designation: str, description: str | None, top: dict) -> None:
+def log_prediction(
+    designation: str, description: str | None, top: dict, model_version: str = "unknown"
+) -> None:
     """Journalise une prediction (best-effort).
 
     Les longueurs sont mesurees sur le TEXTE COMBINE NETTOYE — la meme
     representation que la reference de derive (build_reference lit text_combined),
     sinon un designation brut court paraitrait systematiquement decale.
+    model_version est journalise pour permettre de filtrer la fenetre par modele
+    (une promotion melange sinon anciennes et nouvelles predictions).
     """
     log_path = os.environ.get("PREDICTIONS_LOG_PATH")
     if not log_path:
@@ -61,6 +65,7 @@ def log_prediction(designation: str, description: str | None, top: dict) -> None
         combined = build_text_combined(designation, description)
         entry = {
             "timestamp": datetime.now(timezone.utc).isoformat(),
+            "model_version": model_version,
             "text_chars": len(combined),
             "text_words": len(combined.split()),
             "prdtypecode": top["prdtypecode"],

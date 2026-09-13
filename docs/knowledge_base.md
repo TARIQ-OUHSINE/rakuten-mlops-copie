@@ -937,3 +937,31 @@ restent épinglés pour ne pas invalider les modèles entraînés.
 - `docker compose up` d'un service dont l'image doit être (re)construite peut
   échouer silencieusement au milieu d'un `make up` verbeux — vérifier
   `docker compose ps` après tout démarrage (leçon récurrente depuis la Phase 3).
+
+### Compléments (review Copilot round 2, PR #4)
+
+- **Cohérence des features de dérive** : la référence et le journal live doivent
+  mesurer la **même représentation** (ici le texte combiné nettoyé, colonnes
+  `text_chars`/`text_words`). Mesurer le designation brut d'un côté et text_combined
+  de l'autre = dérive artificielle sur toute requête réelle courte. Bug réel masqué
+  par le test synthétique (send_traffic envoyait text_combined comme designation).
+- **K-S sur petit échantillon** : une fenêtre courante trop petite (60 lignes) face à
+  une référence de 500 déclenche des faux positifs (0.50 sur trafic sain). Relever
+  `min_current_rows` (100) pour que le job **refuse de statuer** plutôt que de crier.
+  Deux garde-fous complémentaires : échantillon de référence borné (500) ET fenêtre
+  courante minimale suffisante.
+- **Télémétrie best-effort obligatoire** : une écriture JSONL ou un push pushgateway
+  sur le chemin de `/predict` doit être `try/except` — un volume plein ne doit jamais
+  transformer une inférence réussie en 500.
+- **Lecture concurrente d'un journal append-only** : les replicas écrivent pendant que
+  le job lit → tolérer une dernière ligne tronquée (mais lever sur une ligne
+  intermédiaire corrompue) ; lire la fenêtre en streaming (`deque(maxlen=window)`)
+  pour une mémoire O(window), pas O(historique).
+- **CI d'image multi-cibles** : scanner (Trivy) et construire **chaque** image
+  déployable (runtime ET monitoring), sinon une CVE dans l'arbre de dépendances
+  d'Evidently passe.
+- **CVE OS de l'image de base = durée de vie limitée** : un scan Trivy vert périme en
+  quelques jours (nouvelles CVE Debian publiées). `apt-get upgrade` dans le build est
+  le correctif durable (perl-base, gzip, libpcre2, libsqlite3 corrigés via +deb13uN).
+- Faux positif Trivy récurrent : `push_to_gateway("host:port")` sans schéma —
+  prometheus_client préfixe `http://` automatiquement (vérifié dans `_use_gateway`).

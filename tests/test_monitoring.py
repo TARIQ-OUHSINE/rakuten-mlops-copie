@@ -56,6 +56,7 @@ def test_predictions_logged_to_jsonl(tmp_path, monkeypatch):
     # longueurs mesurees sur le texte combine nettoye (meme repr. que la reference)
     assert entry["text_chars"] > 0
     assert entry["text_words"] > 0
+    assert entry["model_version"] == "test"
     assert "timestamp" in entry
 
 
@@ -118,3 +119,23 @@ def test_load_current_window_keeps_last_n(tmp_path):
     df = load_current(log_path, window=3)
     assert len(df) == 3
     assert list(df["text_chars"]) == [7, 8, 9]
+
+
+def test_load_current_tolerates_torn_last_line(tmp_path):
+    log_path = tmp_path / "predictions.jsonl"
+    good = json.dumps({"text_chars": 5, "text_words": 2, "prdtypecode": 10, "proba": 0.5})
+    # derniere ligne tronquee (un replica ecrit pendant la lecture)
+    log_path.write_text(good + "\n" + good + "\n" + '{"text_chars": 9, "text_wo')
+    df = load_current(log_path)
+    assert len(df) == 2  # les 2 lignes completes gardees, la partielle ignoree
+
+
+def test_load_current_raises_on_corrupt_middle_line(tmp_path):
+    log_path = tmp_path / "predictions.jsonl"
+    good = json.dumps({"text_chars": 5, "text_words": 2, "prdtypecode": 10, "proba": 0.5})
+    log_path.write_text(good + "\n" + "{casse}\n" + good + "\n")
+    try:
+        load_current(log_path)
+        raise AssertionError("une ligne intermediaire corrompue doit lever")
+    except json.JSONDecodeError:
+        pass

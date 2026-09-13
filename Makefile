@@ -52,7 +52,7 @@ traffic:          ## Envoie N=100 requetes de demo ; ARGS="--drift" pour simuler
 	$(BIN)/python -m src.monitoring.send_traffic $(N) $(ARGS)
 
 drift-report:     ## Evalue la derive (rapport HTML + metriques pushgateway)
-	docker compose --profile drift run --rm drift
+	docker compose --profile drift run --rm --build drift
 
 docker-run:       ## Lance le conteneur API
 	docker run --rm -p $(PORT):8000 $(IMAGE)

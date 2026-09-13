@@ -88,8 +88,8 @@ compare le trafic récent à une référence issue de la validation — alerte
 
 ```bash
 API_KEY=demo make up            # + prometheus :9090, grafana :3001, pushgateway :9091
-API_KEY=demo make traffic N=100 # trafic de demo depuis le jeu de validation
-make drift-report               # rapport HTML + metriques ; exit 1 si derive
+API_KEY=demo make traffic N=300 # trafic de demo (>= 100 requetes pour statuer)
+make drift-report               # rapport HTML + metriques ; make exit 2 si derive
 ```
 
 Runbook de maintenance (dérive → retrain → promotion) : `docs/phase4_summary.md`.

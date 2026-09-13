@@ -85,7 +85,7 @@ services:
     profiles: ["drift"]
     environment:
       MLFLOW_TRACKING_URI: http://mlflow:5000
-      PUSHGATEWAY_URL: pushgateway:9091
+      PUSHGATEWAY_URL: http://pushgateway:9091
     volumes:
       - ./monitoring_data:/app/monitoring_data
       - ./data:/app/data

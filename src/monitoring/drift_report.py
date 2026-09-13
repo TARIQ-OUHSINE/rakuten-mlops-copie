@@ -10,6 +10,7 @@ import json
 import logging
 import os
 import sys
+from collections import deque
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -49,11 +50,24 @@ def build_reference(val_df: pd.DataFrame, model_dir=None) -> pd.DataFrame:
 
 def load_current(log_path: Path, window: int | None = None) -> pd.DataFrame:
     """Charge le journal JSONL. `window` : ne garder que les N dernieres lignes
-    (fenetre glissante — evite de melanger tout l'historique et borne l'I/O)."""
-    lines = [line for line in log_path.read_text().splitlines() if line]
-    if window:
-        lines = lines[-window:]
-    entries = [json.loads(line) for line in lines]
+    (fenetre glissante, lue en streaming avec un deque borne — memoire O(window),
+    pas O(historique)). Tolere une derniere ligne tronquee (un replica peut ecrire
+    pendant la lecture) mais preserve les erreurs sur les lignes completes."""
+    kept: deque[str] = deque(maxlen=window) if window else deque()
+    with open(log_path, encoding="utf-8") as f:
+        for line in f:
+            if line.strip():
+                kept.append(line)
+    entries = []
+    for i, line in enumerate(kept):
+        try:
+            entries.append(json.loads(line))
+        except json.JSONDecodeError:
+            # seule la toute derniere ligne peut etre partielle (ecriture en cours)
+            if i == len(kept) - 1:
+                log.warning("Derniere ligne du journal incomplete — ignoree")
+            else:
+                raise
     # colonnes explicites : un journal vide ne doit pas lever KeyError avant
     # le garde-fou min_current_rows
     return pd.DataFrame(entries, columns=DRIFT_COLUMNS)
