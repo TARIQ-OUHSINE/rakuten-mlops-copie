@@ -1,7 +1,11 @@
 FROM python:3.11-slim AS runtime
 
-# LightGBM a besoin de libgomp
-RUN apt-get update && apt-get install -y --no-install-recommends libgomp1 \
+# apt-get upgrade : applique les mises a jour securite Debian de l'image de base
+# (perl-base, gzip, libpcre2, libsqlite3... — CVE OS avec correctif publie).
+# LightGBM a besoin de libgomp.
+RUN apt-get update \
+    && apt-get upgrade -y \
+    && apt-get install -y --no-install-recommends libgomp1 \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
