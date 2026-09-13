@@ -22,12 +22,16 @@ from src.config import load_params, resolve
 logging.basicConfig(level=logging.INFO, format="%(levelname)s %(message)s")
 log = logging.getLogger(__name__)
 
-DRIFT_COLUMNS = ["designation_chars", "designation_words", "prdtypecode", "proba"]
+DRIFT_COLUMNS = ["text_chars", "text_words", "prdtypecode", "proba"]
 
 
 def build_reference(val_df: pd.DataFrame, model_dir=None) -> pd.DataFrame:
     """Predit sur le jeu de validation avec le modele courant -> memes colonnes
-    que le journal JSONL (le predictor charge Registry ou local, comme l'API)."""
+    que le journal JSONL (le predictor charge Registry ou local, comme l'API).
+
+    Les longueurs sont mesurees sur text_combined (texte nettoye) : l'API mesure
+    la meme representation (cf. metrics.log_prediction), sinon derive artificielle.
+    """
     from src.models.predict_model import BaselinePredictor
 
     predictor = BaselinePredictor(model_dir=model_dir)
@@ -35,17 +39,24 @@ def build_reference(val_df: pd.DataFrame, model_dir=None) -> pd.DataFrame:
     for text in val_df["text_combined"].fillna(""):
         top = predictor.predict(str(text), top_k=1)[0]
         rows.append({
-            "designation_chars": len(str(text)),
-            "designation_words": len(str(text).split()),
+            "text_chars": len(str(text)),
+            "text_words": len(str(text).split()),
             "prdtypecode": top["prdtypecode"],
             "proba": top["proba"],
         })
     return pd.DataFrame(rows)
 
 
-def load_current(log_path: Path) -> pd.DataFrame:
-    entries = [json.loads(line) for line in log_path.read_text().splitlines() if line]
-    return pd.DataFrame(entries)[DRIFT_COLUMNS]
+def load_current(log_path: Path, window: int | None = None) -> pd.DataFrame:
+    """Charge le journal JSONL. `window` : ne garder que les N dernieres lignes
+    (fenetre glissante — evite de melanger tout l'historique et borne l'I/O)."""
+    lines = [line for line in log_path.read_text().splitlines() if line]
+    if window:
+        lines = lines[-window:]
+    entries = [json.loads(line) for line in lines]
+    # colonnes explicites : un journal vide ne doit pas lever KeyError avant
+    # le garde-fou min_current_rows
+    return pd.DataFrame(entries, columns=DRIFT_COLUMNS)
 
 
 def evaluate_drift(reference: pd.DataFrame, current: pd.DataFrame, reports_dir: Path) -> dict:
@@ -73,6 +84,8 @@ def evaluate_drift(reference: pd.DataFrame, current: pd.DataFrame, reports_dir: 
 
 
 def push_metrics(result: dict) -> None:
+    """Pousse les gauges vers le pushgateway (best-effort : le rapport HTML et
+    l'exit code restent valides meme si le pushgateway est absent)."""
     url = os.environ.get("PUSHGATEWAY_URL")
     if not url:
         return
@@ -83,8 +96,11 @@ def push_metrics(result: dict) -> None:
           registry=registry).set(result["drift_share"])
     Gauge("rakuten_drift_detected", "1 si derive au-dela du seuil",
           registry=registry).set(int(result["drift_detected"]))
-    push_to_gateway(url, job="drift", registry=registry)
-    log.info("Metriques poussees vers %s", url)
+    try:
+        push_to_gateway(url, job="drift", registry=registry)
+        log.info("Metriques poussees vers %s", url)
+    except OSError as exc:
+        log.warning("Pushgateway injoignable (%s) — metriques non publiees", exc)
 
 
 def main() -> int:
@@ -93,7 +109,7 @@ def main() -> int:
     if not log_path.exists():
         log.error("%s introuvable — envoyer du trafic d'abord (make traffic)", log_path)
         return 2
-    current = load_current(log_path)
+    current = load_current(log_path, window=params.get("current_window"))
     if len(current) < params["min_current_rows"]:
         log.error("Seulement %d predictions (< %d) — pas assez pour statuer",
                   len(current), params["min_current_rows"])

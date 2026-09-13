@@ -48,8 +48,8 @@ pipeline:         ## Pipeline complet : data -> train -> MLflow/Registry -> remo
 	$(BIN)/dvc repro
 	$(BIN)/dvc push
 
-traffic:          ## Envoie N=100 requetes de demo (API_KEY/API_URL via env)
-	$(BIN)/python -m src.monitoring.send_traffic $(N)
+traffic:          ## Envoie N=100 requetes de demo ; ARGS="--drift" pour simuler la derive
+	$(BIN)/python -m src.monitoring.send_traffic $(N) $(ARGS)
 
 drift-report:     ## Evalue la derive (rapport HTML + metriques pushgateway)
 	docker compose --profile drift run --rm drift

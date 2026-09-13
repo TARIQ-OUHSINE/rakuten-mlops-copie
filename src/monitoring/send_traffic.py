@@ -16,7 +16,7 @@ API_URL = os.environ.get("API_URL", "http://localhost:8000")
 API_KEY = os.environ.get("API_KEY", "")
 
 
-def main() -> None:
+def main() -> int:
     n = int(sys.argv[1]) if len(sys.argv) > 1 and sys.argv[1].isdigit() else 100
     drift = "--drift" in sys.argv
     val = pd.read_parquet(
@@ -28,14 +28,21 @@ def main() -> None:
     with httpx.Client(timeout=30) as client:
         for text in val["text_combined"]:
             payload = " ".join(str(text).split()[:3]) if drift else str(text)
-            r = client.post(
-                f"{API_URL}/predict",
-                json={"designation": payload or "produit"},
-                headers=headers,
-            )
-            ok += r.status_code == 200
+            try:
+                r = client.post(
+                    f"{API_URL}/predict",
+                    json={"designation": payload or "produit"},
+                    headers=headers,
+                )
+                ok += r.status_code == 200
+            except httpx.HTTPError as exc:
+                # replica en cours de demarrage, reset transitoire : on continue
+                print(f"requete echouee : {exc}")
     print(f"{ok}/{n} predictions ok ({'drift simule' if drift else 'normal'})")
+    # exit non nul si au moins une requete a echoue (ex: mauvaise cle) : une
+    # automation ne doit pas continuer avec un journal incomplet en croyant OK
+    return 0 if ok == n else 1
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())

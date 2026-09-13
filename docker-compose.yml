@@ -60,9 +60,10 @@ services:
   grafana:
     image: grafana/grafana-oss:11.5.2
     environment:
-      # Acces anonyme admin : contexte demo uniquement
+      # Acces anonyme en lecture seule (Viewer) : le dashboard est provisionne
+      # par fichiers, aucun role Admin n'est requis pour le consulter en demo.
       GF_AUTH_ANONYMOUS_ENABLED: "true"
-      GF_AUTH_ANONYMOUS_ORG_ROLE: Admin
+      GF_AUTH_ANONYMOUS_ORG_ROLE: Viewer
     volumes:
       - ./docker/grafana/provisioning:/etc/grafana/provisioning:ro
       - ./docker/grafana/dashboards:/var/lib/grafana/dashboards:ro
@@ -91,6 +92,8 @@ services:
     depends_on:
       mlflow:
         condition: service_healthy
+      pushgateway:
+        condition: service_started
 
   trainer:
     build:

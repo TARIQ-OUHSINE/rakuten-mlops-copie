@@ -38,7 +38,7 @@ Evidently, mise à jour du modèle, documentation).
 ## Architecture cible
 
 ```
-client ──:8000──▶ nginx ──▶ api xN ──/metrics──▶ prometheus (:9090) ──▶ grafana (:3000)
+client ──:8000──▶ nginx ──▶ api xN ──/metrics──▶ prometheus (:9090) ──▶ grafana (:3001)
                              │                        ▲                   dashboard provisionné
                              ▼                        │
                    monitoring_data/predictions.jsonl  │
@@ -401,7 +401,7 @@ providers:
       - ./docker/grafana/provisioning:/etc/grafana/provisioning:ro
       - ./docker/grafana/dashboards:/var/lib/grafana/dashboards:ro
     ports:
-      - "3000:3000"
+      - "3001:3000"
     depends_on:
       - prometheus
 
@@ -438,7 +438,7 @@ leçon Phase 3 : un tag inexistant n'échoue qu'à l'exécution.
 $ docker compose config --quiet && API_KEY=demo make up
 $ API_KEY=demo make traffic N=50
 $ curl -s localhost:9090/api/v1/targets | grep -o '"health":"up"' | wc -l   # >= 3 (2 api + pushgateway)
-$ open http://localhost:3000/d/rakuten-api    # dashboard peuple sans configuration
+$ open http://localhost:3001/d/rakuten-api    # dashboard peuple sans configuration
 ```
 
 - [ ] **Commit** : `git commit -m "Phase 4: stack monitoring compose (prometheus, grafana provisionne, pushgateway)"`
@@ -707,14 +707,14 @@ WARNING DERIVE DETECTEE — examiner le rapport puis relancer `make pipeline` ..
 - [ ] **`docs/phase4_summary.md`** : tableau problème→solution (boîte noire→/metrics+Grafana,
   pas de trace→JSONL, pas de détection→Evidently, mise à jour→runbook), architecture,
   **runbook de maintenance** :
-  1. Grafana :3000 — panneau drift rouge ou alerte du job (`make drift-report` exit 1)
+  1. Grafana :3001 — panneau drift rouge ou alerte du job (`make drift-report` exit 1)
   2. Examiner le rapport HTML (`monitoring_data/reports/`) : quelles colonnes dérivent ?
   3. Si dérive réelle : récupérer des données récentes → `make pipeline` → comparer les
      runs dans MLflow → promouvoir l'alias `production` → `docker compose restart api`
   4. Vérifier `/health` (nouvelle version) et le retour à la normale du drift share
   + commandes de démo soutenance (traffic normal → dashboard, traffic --drift → alerte).
 - [ ] **README** : section Phase 4 (stack monitoring, `make traffic` / `drift-report`,
-  URLs :3000/:9090/:9091) + mise à jour du Project Organization (src/monitoring, docker/).
+  URLs :3001/:9090/:9091) + mise à jour du Project Organization (src/monitoring, docker/).
 - [ ] **Bilan Phase 4 dans `docs/knowledge_base.md`** (même format que les Phases 1–3).
 - [ ] **Vérification finale complète** : `make lint && make test` ; stack up → traffic →
   dashboard peuplé → drift-report normal (exit 0) → drift simulé (exit 1, panneau rouge).
@@ -739,7 +739,7 @@ production), TLS, Kubernetes, dashboards nginx/infra.
 ## Verification
 
 1. `make test` : suite complète verte **hors ligne** (7 nouveaux tests monitoring/drift).
-2. `make up` → Grafana :3000 affiche le dashboard provisionné sans configuration manuelle ;
+2. `make up` → Grafana :3001 affiche le dashboard provisionné sans configuration manuelle ;
    après `make traffic N=50`, les 4 panneaux API sont peuplés ; Prometheus :9090 montre
    les targets api (N replicas) et pushgateway « up ».
 3. `make drift-report` sur trafic normal → exit 0 ; après `send_traffic --drift` →

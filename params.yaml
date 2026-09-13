@@ -47,5 +47,6 @@ monitoring:
   reports_dir: monitoring_data/reports
   drift_share_threshold: 0.3      # part de colonnes derivees declenchant l'alerte
   min_current_rows: 20            # en dessous : pas assez de trafic pour statuer
+  current_window: 500             # fenetre glissante : n dernieres predictions evaluees
   reference_sample: 500           # taille de reference comparable a la fenetre courante
                                   # (reference complete -> tests K-S hypersensibles)

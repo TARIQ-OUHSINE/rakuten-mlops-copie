@@ -6,7 +6,7 @@ import pandas as pd
 from fastapi.testclient import TestClient
 
 from src.api.main import app, state
-from src.monitoring.drift_report import build_reference, evaluate_drift
+from src.monitoring.drift_report import build_reference, evaluate_drift, load_current
 
 
 class FakePredictor:
@@ -53,7 +53,9 @@ def test_predictions_logged_to_jsonl(tmp_path, monkeypatch):
     entry = json.loads(lines[0])
     assert entry["prdtypecode"] == 10
     assert entry["proba"] == 0.9
-    assert entry["designation_chars"] == len("Console Nintendo")
+    # longueurs mesurees sur le texte combine nettoye (meme repr. que la reference)
+    assert entry["text_chars"] > 0
+    assert entry["text_words"] > 0
     assert "timestamp" in entry
 
 
@@ -68,8 +70,8 @@ def test_no_jsonl_when_env_unset(tmp_path, monkeypatch):
 def _fake_frame(chars=50, words=8, code=10, proba=0.9, n=50):
     # legere variance pour que les tests statistiques aient une distribution
     return pd.DataFrame({
-        "designation_chars": [chars + i % 5 for i in range(n)],
-        "designation_words": [words + i % 3 for i in range(n)],
+        "text_chars": [chars + i % 5 for i in range(n)],
+        "text_words": [words + i % 3 for i in range(n)],
         "prdtypecode": [code + (i % 2) * 30 for i in range(n)],
         "proba": [round(proba - (i % 4) * 0.02, 2) for i in range(n)],
     })
@@ -94,6 +96,25 @@ def test_drift_detected_on_shifted_data(tmp_path):
 def test_build_reference_shape(model_dir, sample_df):
     ref = build_reference(sample_df.head(10), model_dir=model_dir)
     assert set(ref.columns) == {
-        "designation_chars", "designation_words", "prdtypecode", "proba",
+        "text_chars", "text_words", "prdtypecode", "proba",
     }
     assert len(ref) == 10
+
+
+def test_load_current_empty_file_returns_empty_frame(tmp_path):
+    log_path = tmp_path / "predictions.jsonl"
+    log_path.write_text("")  # journal vide : pas de KeyError
+    df = load_current(log_path)
+    assert list(df.columns) == ["text_chars", "text_words", "prdtypecode", "proba"]
+    assert len(df) == 0
+
+
+def test_load_current_window_keeps_last_n(tmp_path):
+    log_path = tmp_path / "predictions.jsonl"
+    log_path.write_text("\n".join(
+        json.dumps({"text_chars": i, "text_words": i, "prdtypecode": 10, "proba": 0.5})
+        for i in range(10)
+    ))
+    df = load_current(log_path, window=3)
+    assert len(df) == 3
+    assert list(df["text_chars"]) == [7, 8, 9]
