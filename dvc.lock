@@ -13,8 +13,8 @@ stages:
       size: 906705
     - path: src/data/
       hash: md5
-      md5: 30dd23c503f6dad1c58a64475ff31d18.dir
-      size: 31043
+      md5: 38cf156a9e29f67b8bb878f34895d354.dir
+      size: 31279
       nfiles: 12
     params:
       params.yaml:
@@ -28,16 +28,16 @@ stages:
     outs:
     - path: data/processed/
       hash: md5
-      md5: 48e3e6078a3c089682a598d734ef0569.dir
-      size: 17970871
+      md5: aa4f76879b5483d1a9fb48765badcd04.dir
+      size: 17970444
       nfiles: 2
   train:
     cmd: python -m src.models.train_model
     deps:
     - path: data/processed/
       hash: md5
-      md5: 48e3e6078a3c089682a598d734ef0569.dir
-      size: 17970871
+      md5: aa4f76879b5483d1a9fb48765badcd04.dir
+      size: 17970444
       nfiles: 2
     - path: src/features/
       hash: md5
@@ -69,7 +69,7 @@ stages:
           verbose: -1
         model:
           dir: models/baseline
-          version: baseline-tfidf-lgbm-v1
+          version: baseline-tfidf-lgbm-v2
         tfidf:
           max_features: 50000
           ngram_range:
@@ -81,6 +81,6 @@ stages:
     outs:
     - path: models/baseline/
       hash: md5
-      md5: 3619d600ed7767f3defd6b4165514db6.dir
-      size: 41322354
+      md5: 862f472cdbfafec84e1de4395c101109.dir
+      size: 39942778
       nfiles: 4

@@ -32,7 +32,7 @@ def test_predict_happy_path(client):
     assert r.status_code == 200
     body = r.json()
     assert len(body["predictions"]) == 3
-    assert body["model_version"] == "baseline-tfidf-lgbm-v1"
+    assert body["model_version"] == "baseline-tfidf-lgbm-v2"
     top = body["predictions"][0]
     assert {"prdtypecode", "label_idx", "proba"} <= set(top)
 
