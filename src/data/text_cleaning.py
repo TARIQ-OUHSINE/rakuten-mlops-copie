@@ -4,6 +4,7 @@ Logique extraite de notebooks/main_notebooks/01_preprocessing_eda.ipynb :
 clean HTML -> minuscules -> suppression non-alpha -> stop words -> stemming FR.
 """
 
+import html
 import re
 import unicodedata
 from functools import lru_cache
@@ -11,7 +12,6 @@ from functools import lru_cache
 import pandas as pd
 
 _HTML_TAG = re.compile(r"<[^>]+>", re.IGNORECASE)
-_HTML_ENTITY = re.compile(r"&[a-zA-Z]+;|&#\d+;")
 _MULTIPLE_SPC = re.compile(r"\s+")
 _NON_ALPHA = re.compile(r"[^a-z\s]")
 
@@ -48,9 +48,12 @@ def _get_stopwords() -> frozenset:
             "(python -m nltk.downloader stopwords)"
         ) from None
 
-    all_stopwords = set(_EXTRA_STOPWORDS)
+    # de-accentuer le set : les tokens sont de-accentues avant comparaison, donc
+    # « même » -> « meme » doit matcher un stopword « meme » (sinon il fuit dans
+    # le vocabulaire). Coherence indispensable avec _strip_accents cote texte.
+    all_stopwords = {_strip_accents(w) for w in _EXTRA_STOPWORDS}
     for lang in ("french", "english", "german", "spanish"):
-        all_stopwords.update(stopwords.words(lang))
+        all_stopwords.update(_strip_accents(w) for w in stopwords.words(lang))
     return frozenset(all_stopwords)
 
 
@@ -62,11 +65,16 @@ def _get_stemmer():
 
 
 def clean_html(text) -> str:
-    """Supprime les balises HTML et entites, normalise les espaces."""
+    """Supprime les balises HTML, decode les entites, normalise les espaces.
+
+    Les entites sont DECODEES (html.unescape) et non supprimees : « int&eacute;gr&eacute; »
+    -> « intégré » (dé-accentué ensuite en « integre »). Les blanchir tronquait les
+    mots dont les accents sont encodes en HTML.
+    """
     if text is None or pd.isna(text):
         return ""
     text = _HTML_TAG.sub(" ", str(text))
-    text = _HTML_ENTITY.sub(" ", text)
+    text = html.unescape(text)  # &eacute; -> é, &#233; -> é, &amp; -> &, &nbsp; -> \xa0
     return _MULTIPLE_SPC.sub(" ", text).strip()
 
 

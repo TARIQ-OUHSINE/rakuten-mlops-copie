@@ -9,8 +9,13 @@ class TestCleanHtml:
     def test_removes_tags(self):
         assert clean_html("<p>Console <b>Nintendo</b></p>") == "Console Nintendo"
 
-    def test_removes_entities(self):
-        assert clean_html("Jeu &amp; console &#233; discount") == "Jeu console discount"
+    def test_decodes_entities(self):
+        # les entites sont decodees (pas blanchies) : &amp; -> &, &#233; -> é
+        assert clean_html("Jeu &amp; console &#233; discount") == "Jeu & console é discount"
+
+    def test_entity_encoded_accent_survives(self):
+        # "int&eacute;gr&eacute;" ne doit plus etre tronque en "int gr"
+        assert clean_html("int&eacute;gr&eacute;") == "intégré"
 
     def test_normalizes_spaces(self):
         assert clean_html("  a   b \n c ") == "a b c"
@@ -42,6 +47,17 @@ class TestPreprocessText:
         # (avant, "magnetisme" etait tronque en "magn tisme")
         out = preprocess_text("magnétisme protégé", stem=False)
         assert out == "magnetisme protege"
+
+    def test_accented_stopwords_filtered(self):
+        # « même »/« était » sont des stopwords FR accentues : ils doivent etre
+        # retires malgre la de-accentuation (set de stopwords de-accentue aussi).
+        # « console » n'est pas un stopword et survit.
+        assert preprocess_text("même était console", stem=False) == "console"
+
+    def test_entity_accent_word_survives_full_pipeline(self):
+        # entite HTML -> accent -> de-accentue, le mot reste entier
+        out = preprocess_text(clean_html("int&eacute;gration"), stem=False)
+        assert out == "integration"
 
     def test_empty_and_nan(self):
         assert preprocess_text("") == ""
