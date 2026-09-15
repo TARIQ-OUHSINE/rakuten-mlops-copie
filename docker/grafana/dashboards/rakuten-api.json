@@ -1,0 +1,28 @@
+{
+  "title": "Rakuten API — MLOps",
+  "uid": "rakuten-api",
+  "timezone": "browser",
+  "refresh": "10s",
+  "time": {"from": "now-30m", "to": "now"},
+  "panels": [
+    {"id": 1, "type": "timeseries", "title": "Requetes /predict par seconde",
+     "gridPos": {"x": 0, "y": 0, "w": 12, "h": 8},
+     "targets": [{"expr": "sum(rate(http_requests_total{handler=\"/predict\"}[1m]))"}]},
+    {"id": 2, "type": "timeseries", "title": "Latence p95 (s)",
+     "gridPos": {"x": 12, "y": 0, "w": 12, "h": 8},
+     "targets": [{"expr": "histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket{handler=\"/predict\"}[5m])) by (le))"}]},
+    {"id": 3, "type": "piechart", "title": "Predictions par classe",
+     "gridPos": {"x": 0, "y": 8, "w": 8, "h": 8},
+     "targets": [{"expr": "sum(rakuten_predictions_total) by (prdtypecode)"}]},
+    {"id": 4, "type": "timeseries", "title": "Confiance mediane (top-1)",
+     "gridPos": {"x": 8, "y": 8, "w": 8, "h": 8},
+     "targets": [{"expr": "histogram_quantile(0.5, sum(rate(rakuten_prediction_confidence_bucket[5m])) by (le))"}]},
+    {"id": 5, "type": "stat", "title": "Drift share (Evidently)",
+     "gridPos": {"x": 16, "y": 8, "w": 8, "h": 8},
+     "fieldConfig": {"defaults": {"thresholds": {"steps": [
+       {"color": "green", "value": null},
+       {"color": "red", "value": 0.3}]}}},
+     "targets": [{"expr": "rakuten_drift_share"}]}
+  ],
+  "schemaVersion": 39
+}

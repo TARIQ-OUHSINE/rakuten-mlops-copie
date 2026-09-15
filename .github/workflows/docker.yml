@@ -40,10 +40,28 @@ jobs:
           tags: rakuten-api:ci
           cache-from: type=gha
           cache-to: type=gha,mode=max
-      - name: Trivy vulnerability scan
+      - name: Build monitoring image (job de derive Evidently)
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          target: monitoring
+          load: true
+          tags: rakuten-monitoring:ci
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+      - name: Trivy vulnerability scan (runtime)
         uses: aquasecurity/trivy-action@v0.36.0
         with:
           image-ref: rakuten-api:ci
+          format: table
+          severity: CRITICAL,HIGH
+          exit-code: "1"
+          ignore-unfixed: true
+          trivyignores: .trivyignore
+      - name: Trivy vulnerability scan (monitoring)
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          image-ref: rakuten-monitoring:ci
           format: table
           severity: CRITICAL,HIGH
           exit-code: "1"

@@ -1,7 +1,11 @@
 FROM python:3.11-slim AS runtime
 
-# LightGBM a besoin de libgomp
-RUN apt-get update && apt-get install -y --no-install-recommends libgomp1 \
+# apt-get upgrade : applique les mises a jour securite Debian de l'image de base
+# (perl-base, gzip, libpcre2, libsqlite3... — CVE OS avec correctif publie).
+# LightGBM a besoin de libgomp.
+RUN apt-get update \
+    && apt-get upgrade -y \
+    && apt-get install -y --no-install-recommends libgomp1 \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
@@ -29,6 +33,13 @@ EXPOSE 8000
 # Forme shell pour interpoler UVICORN_WORKERS (1 par defaut : chaque worker
 # charge le modele en memoire)
 CMD exec uvicorn src.api.main:app --host 0.0.0.0 --port 8000 --workers ${UVICORN_WORKERS:-1}
+
+# Image du job de derive (docker compose --profile drift) : evidently reste
+# hors de l'image API (lourd, inutile au serving).
+FROM runtime AS monitoring
+RUN pip install --no-cache-dir evidently==0.7.23
+COPY src/monitoring/ src/monitoring/
+CMD ["python", "-m", "src.monitoring.drift_report"]
 
 # Image du job d'entrainement (docker compose --profile train) :
 # la meme base + git/dvc pour `dvc repro` sur le repo monte dans /app.

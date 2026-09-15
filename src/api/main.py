@@ -10,6 +10,7 @@ from contextlib import asynccontextmanager
 from fastapi import Depends, FastAPI, HTTPException
 from fastapi.middleware.gzip import GZipMiddleware
 
+from src.api.metrics import log_prediction, observe_prediction, setup_metrics
 from src.api.schemas import HealthResponse, PredictRequest, PredictResponse
 from src.api.security import require_api_key
 from src.models.predict_model import BaselinePredictor
@@ -53,6 +54,9 @@ async def add_process_time_header(request, call_next):
     return response
 
 
+setup_metrics(app)
+
+
 @app.get("/health", response_model=HealthResponse)
 def health() -> HealthResponse:
     predictor = state["predictor"]
@@ -75,4 +79,7 @@ def predict(request: PredictRequest) -> PredictResponse:
     predictions = predictor.predict(
         request.designation, request.description, top_k=request.top_k
     )
+    top = predictions[0]
+    observe_prediction(top)
+    log_prediction(request.designation, request.description, top, predictor.version)
     return PredictResponse(predictions=predictions, model_version=predictor.version)

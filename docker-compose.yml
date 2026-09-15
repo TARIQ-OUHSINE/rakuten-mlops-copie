@@ -41,10 +41,62 @@ services:
     environment:
       MLFLOW_TRACKING_URI: http://mlflow:5000
       API_KEY: ${API_KEY:-}
+      PREDICTIONS_LOG_PATH: /app/monitoring_data/predictions.jsonl
+    volumes:
+      - ./monitoring_data:/app/monitoring_data
     depends_on:
       mlflow:
         condition: service_healthy
     # pas de port hote : seul nginx est expose (replicas via --scale api=N)
+
+  prometheus:
+    image: prom/prometheus:v3.2.1
+    volumes:
+      - ./docker/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./prometheus_data:/prometheus
+    ports:
+      - "9090:9090"
+
+  grafana:
+    image: grafana/grafana-oss:11.5.2
+    environment:
+      # Acces anonyme en lecture seule (Viewer) : le dashboard est provisionne
+      # par fichiers, aucun role Admin n'est requis pour le consulter en demo.
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+      GF_AUTH_ANONYMOUS_ORG_ROLE: Viewer
+    volumes:
+      - ./docker/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./docker/grafana/dashboards:/var/lib/grafana/dashboards:ro
+    ports:
+      # 3001 cote hote : :3000 est souvent pris par un dev server node
+      - "3001:3000"
+    depends_on:
+      - prometheus
+
+  pushgateway:
+    image: prom/pushgateway:v1.11.0
+    ports:
+      # loopback uniquement : l'API d'ecriture du pushgateway n'est pas
+      # authentifiee. Prometheus et le job drift l'atteignent via le reseau
+      # compose (pushgateway:9091), pas besoin de l'exposer au LAN.
+      - "127.0.0.1:9091:9091"
+
+  drift:
+    build:
+      context: .
+      target: monitoring
+    profiles: ["drift"]
+    environment:
+      MLFLOW_TRACKING_URI: http://mlflow:5000
+      PUSHGATEWAY_URL: http://pushgateway:9091
+    volumes:
+      - ./monitoring_data:/app/monitoring_data
+      - ./data:/app/data
+    depends_on:
+      mlflow:
+        condition: service_healthy
+      pushgateway:
+        condition: service_started
 
   trainer:
     build:

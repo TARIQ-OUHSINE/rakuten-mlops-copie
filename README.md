@@ -77,11 +77,30 @@ Variables d'env : `API_KEY` (auth), `REPLICAS` (replicas api, defaut 2),
 `UVICORN_WORKERS` (workers par conteneur, defaut 1).
 Détails : `docs/phase3_summary.md`.
 
+Phase 4 — Monitoring & détection de dérive
+------------
+
+L'API expose `/metrics` (latence, débit, prédictions par classe, confiance) et
+journalise chaque prédiction en JSONL ; Prometheus scrape les replicas, Grafana
+est provisionné par code (dashboard prêt sur **:3001**), et un job Evidently
+compare le trafic récent à une référence issue de la validation — alerte
+(exit 1 + panneau rouge) sans retrain automatique.
+
+```bash
+API_KEY=demo make up            # + prometheus :9090, grafana :3001, pushgateway :9091
+API_KEY=demo make traffic N=300 # trafic de demo (>= 100 requetes pour statuer)
+make drift-report               # rapport HTML + metriques ; make exit 2 si derive
+```
+
+Runbook de maintenance (dérive → retrain → promotion) : `docs/phase4_summary.md`.
+
 Project Organization
 ------------
 
-    ├── Dockerfile              <- Image API (stage runtime) + job train (stage trainer)
-    ├── docker-compose.yml      <- Services mlflow / api / trainer (profile train)
+    ├── Dockerfile              <- Image API (runtime) + jobs train (trainer) et drift (monitoring)
+    ├── docker-compose.yml      <- mlflow / nginx / api / prometheus / grafana / pushgateway
+    │                              + jobs trainer (profile train) et drift (profile drift)
+    ├── docker/                 <- nginx.conf, prometheus.yml, provisioning Grafana
     ├── Makefile                <- setup / data / train / test / api / up / down / ...
     ├── params.yaml             <- Configuration unique (chemins, TF-IDF, LightGBM, MLflow)
     ├── dvc.yaml                <- Pipeline DVC (prepare -> train)
@@ -97,7 +116,8 @@ Project Organization
     │   ├── data                <- download_data.py, make_dataset.py, text_cleaning.py
     │   ├── features            <- build_features.py (TF-IDF)
     │   ├── models              <- train_model.py, predict_model.py, mlflow_utils.py
-    │   └── api                 <- main.py (FastAPI), schemas.py
+    │   ├── monitoring          <- drift_report.py (Evidently), send_traffic.py
+    │   └── api                 <- main.py (FastAPI), schemas.py, security.py, metrics.py
     │
     └── tests                   <- Tests unitaires (fixtures committées, sans serveur)
 
