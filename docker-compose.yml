@@ -76,7 +76,10 @@ services:
   pushgateway:
     image: prom/pushgateway:v1.11.0
     ports:
-      - "9091:9091"
+      # loopback uniquement : l'API d'ecriture du pushgateway n'est pas
+      # authentifiee. Prometheus et le job drift l'atteignent via le reseau
+      # compose (pushgateway:9091), pas besoin de l'exposer au LAN.
+      - "127.0.0.1:9091:9091"
 
   drift:
     build:
