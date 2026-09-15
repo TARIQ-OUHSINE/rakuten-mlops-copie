@@ -5,6 +5,7 @@ clean HTML -> minuscules -> suppression non-alpha -> stop words -> stemming FR.
 """
 
 import re
+import unicodedata
 from functools import lru_cache
 
 import pandas as pd
@@ -19,6 +20,20 @@ _EXTRA_STOPWORDS = {
     "cm", "mm", "ml", "kg", "g", "l", "n", "x", "ref", "ref.", "lot",
     "pack", "set", "new", "neuf", "article", "produit", "product",
 }
+
+
+def _strip_accents(text: str) -> str:
+    """Normalise les accents vers leur base ASCII (e -> e, c -> c...).
+
+    NFKD decompose une lettre accentuee en base + diacritique combinant ; on
+    supprime les diacritiques. Doit passer AVANT le filtre [^a-z\\s], sinon les
+    lettres accentuees sont supprimees et tronquent les mots francais
+    (« magnetisme » perdu). Modele v2 : necessite un re-entrainement complet.
+    """
+    return "".join(
+        c for c in unicodedata.normalize("NFKD", text)
+        if not unicodedata.combining(c)
+    )
 
 
 @lru_cache(maxsize=1)
@@ -61,6 +76,7 @@ def preprocess_text(text, stem: bool = True) -> str:
         return ""
     stopwords_set = _get_stopwords()
     text = str(text).lower()
+    text = _strip_accents(text)  # v2 : de-accentue avant le filtre non-alpha
     text = _NON_ALPHA.sub(" ", text)
     tokens = [t for t in text.split() if t not in stopwords_set and len(t) > 2]
     if stem:

@@ -37,6 +37,12 @@ class TestPreprocessText:
         out = preprocess_text("consoles portables", stem=True)
         assert out == "consol portabl"
 
+    def test_accents_normalized_not_stripped(self):
+        # v2 : les accents deviennent leur base ASCII, le mot reste entier
+        # (avant, "magnetisme" etait tronque en "magn tisme")
+        out = preprocess_text("magnétisme protégé", stem=False)
+        assert out == "magnetisme protege"
+
     def test_empty_and_nan(self):
         assert preprocess_text("") == ""
         assert preprocess_text(None) == ""

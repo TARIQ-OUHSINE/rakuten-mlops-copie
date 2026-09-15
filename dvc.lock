@@ -13,8 +13,8 @@ stages:
       size: 906705
     - path: src/data/
       hash: md5
-      md5: 5d0dfff0bd3e92fd6973c7e5c3bd8f0e.dir
-      size: 28393
+      md5: a8104037ce40cfab8bb1e45f8cc60c57.dir
+      size: 30011
       nfiles: 12
     params:
       params.yaml:
@@ -28,16 +28,16 @@ stages:
     outs:
     - path: data/processed/
       hash: md5
-      md5: 9061b7360e91bedcb43cca3f5fccdde3.dir
-      size: 17619042
+      md5: f9df0fc9e3713db312d7266c8406ddb5.dir
+      size: 18002534
       nfiles: 2
   train:
     cmd: python -m src.models.train_model
     deps:
     - path: data/processed/
       hash: md5
-      md5: 9061b7360e91bedcb43cca3f5fccdde3.dir
-      size: 17619042
+      md5: f9df0fc9e3713db312d7266c8406ddb5.dir
+      size: 18002534
       nfiles: 2
     - path: src/features/
       hash: md5
@@ -46,8 +46,8 @@ stages:
       nfiles: 6
     - path: src/models/mlflow_utils.py
       hash: md5
-      md5: 0fb767c06ef410a9d274fcf57652fd52
-      size: 3961
+      md5: 491a92205d0da027f58433a15d09bae2
+      size: 4219
     - path: src/models/train_model.py
       hash: md5
       md5: 5e97ca3971517d800d6c0bbc0305c7cd
@@ -81,6 +81,6 @@ stages:
     outs:
     - path: models/baseline/
       hash: md5
-      md5: 838c4f14344ef6f104e1238da21aa5a7.dir
-      size: 39037943
+      md5: 9637c05c8250c179dc95395e1011be65.dir
+      size: 40539269
       nfiles: 4
