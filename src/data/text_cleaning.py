@@ -75,11 +75,13 @@ def clean_html(text) -> str:
         return ""
     text = _HTML_TAG.sub(" ", str(text))
     text = html.unescape(text)  # &eacute; -> é, &#233; -> é, &amp; -> &, &nbsp; -> \xa0
+    text = _HTML_TAG.sub(" ", text)  # 2e passe : balises encodees (&lt;b&gt;) devenues reelles
     return _MULTIPLE_SPC.sub(" ", text).strip()
 
 
 def preprocess_text(text, stem: bool = True) -> str:
-    """Pipeline baseline : minuscules -> non-alpha -> stop words -> stemming FR."""
+    """Pipeline v2 : minuscules -> de-accentuation (NFKD) -> non-alpha ->
+    stop words (de-accentues) -> stemming FR."""
     if text is None or pd.isna(text) or not str(text).strip():
         return ""
     stopwords_set = _get_stopwords()

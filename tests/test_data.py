@@ -17,6 +17,10 @@ class TestCleanHtml:
         # "int&eacute;gr&eacute;" ne doit plus etre tronque en "int gr"
         assert clean_html("int&eacute;gr&eacute;") == "intégré"
 
+    def test_encoded_tags_removed(self):
+        # balise encodee : &lt;b&gt;Console&lt;/b&gt; -> tag reel apres unescape -> retire
+        assert clean_html("&lt;b&gt;Console&lt;/b&gt;") == "Console"
+
     def test_normalizes_spaces(self):
         assert clean_html("  a   b \n c ") == "a b c"
 
